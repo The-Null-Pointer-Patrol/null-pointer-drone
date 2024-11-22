@@ -104,13 +104,11 @@ fn create_error_packet(original_packet: &Packet, nack_type: NackType, fragment_i
         // .map(|node| *node) // copied substitutes this map call
         .collect::<Vec<NodeId>>();
 
-    let mut rng = rand::thread_rng();
-    let new_session_id: u64 = rng.random();
     Packet {
         pack_type: PacketType::Nack(
             Nack {
                 fragment_index,
-                time_of_fail: Instant::now(),
+                time_of_fail: Instant::now(),  // TODO: to be removed when proposal will be merged
                 nack_type,
             }
         ),
@@ -118,7 +116,7 @@ fn create_error_packet(original_packet: &Packet, nack_type: NackType, fragment_i
             hop_index: 0,
             hops: reverse_path
         },
-        session_id: new_session_id, // TODO: ask how session_id's are generated
+        session_id: original_packet.session_id, // TODO: ask how session_id's are generated?
     }
 }
 
