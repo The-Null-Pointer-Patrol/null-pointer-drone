@@ -1,12 +1,10 @@
 use crossbeam_channel::{select, Receiver, Sender};
+use wg_2024::drone::{Drone, DroneOptions};
 use std::collections::HashMap;
 use std::thread;
 use wg_2024::controller::Command;
 use wg_2024::network::NodeId;
 use wg_2024::packet::{Packet, PacketType};
-
-// temporary fix for testing
-use network_initializer::unofficial_wg_implementations::{DroneOptions,Drone};
 
 pub struct MyDrone {
     id: NodeId,
