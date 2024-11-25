@@ -5,5 +5,4 @@ edition = "2021"
 
 [dependencies]
 crossbeam-channel = "0.5.13"
-# wg_2024 = { git = "https://github.com/WGL-2024/WGL_repo_2024.git", features = ["serialize"] }
-wg_2024 = { git = "https://github.com/The-Null-Pointer-Patrol/WGL_repo_2024.git", branch = "makes-netinitializer-work" ,features = ["serialize"]}
+wg_2024 = { git = "https://github.com/WGL-2024/WGL_repo_2024.git", features = ["serialize"] }
