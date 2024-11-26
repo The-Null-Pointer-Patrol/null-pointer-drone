@@ -2,7 +2,7 @@ use crossbeam_channel::{select, Receiver, Sender};
 use std::collections::{HashMap, HashSet};
 use rand::Rng;
 use wg_2024::controller::{DroneCommand, NodeEvent};
-use wg_2024::drone::Drone;
+use wg_2024::drone::{Drone, DroneOptions};
 use wg_2024::network::{NodeId, SourceRoutingHeader};
 use wg_2024::packet::{Nack, Packet, PacketType};
 
