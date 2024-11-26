@@ -17,7 +17,7 @@ pub struct MyDrone {
 }
 
 impl Drone for MyDrone {
-    fn new(options: wg_2024::drone::DroneOptions) -> Self {
+    fn new(options: DroneOptions) -> Self {
         Self {
             id: options.id,
             sim_contr_send: options.controller_send,
