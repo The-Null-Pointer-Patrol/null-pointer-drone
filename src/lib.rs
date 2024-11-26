@@ -23,7 +23,7 @@ impl Drone for MyDrone {
             sim_contr_send: options.controller_send,
             sim_contr_recv: options.controller_recv,
             packet_recv: options.packet_recv,
-            pdr: options.pdr * 100.0,
+            pdr: options.pdr,
             packet_send: HashMap::new(),
             known_flood_ids: HashSet::new(),
         }
@@ -35,10 +35,19 @@ impl Drone for MyDrone {
                 recv(self.packet_recv) -> packet_res => {
                     if let Ok(packet) = packet_res {
                         match &packet.pack_type {
-                            PacketType::Nack(_nack) => {
+                            PacketType::Nack(_nack) | PacketType::Ack(_ack) => {
                                 match self.forward_packet(packet.clone()) {
                                     Ok(()) => {
-                                        // TODO: send DroneEvent to Simulation Controller
+                                        let sent_packet = NodeEvent::PacketSent(packet.clone())
+                                        match self.sim_contr_send.send(sent_packet) {
+                                            Ok(()) => {
+                                                // packet successfully sent to simulation controller
+                                            },
+                                            Err(send_error) => {
+                                                // error while sending packet to simulation controller
+                                                panic!("{:?}", send_error)
+                                            }
+                                        }
                                     },
                                     Err(error) => {
                                         let error_packet = create_error_packet(&packet, error);
@@ -46,16 +55,15 @@ impl Drone for MyDrone {
                                     }
                                 }
                             },
-                            PacketType::Ack(ack) => {
-                                let fragment_index = ack.fragment_index;
-                                match self.forward_packet(packet.clone()) {
-                                    Ok(()) => {},
-                                    Err(error) => {
-                                        let error_packet = create_error_packet(&packet, error);
-                                        let _ = self.forward_packet(error_packet);
-                                    }
-                                }
-                            },
+                            // PacketType::Ack(_ack) => {
+                            //     match self.forward_packet(packet.clone()) {
+                            //         Ok(()) => {},
+                            //         Err(error) => {
+                            //             let error_packet = create_error_packet(&packet, error);
+                            //             let _ = self.forward_packet(error_packet);
+                            //         }
+                            //     }
+                            // },
                             PacketType::MsgFragment(fragment) => {
                                 let fragment_index = fragment.fragment_index;
                                 let mut rng = rand::rng();
@@ -65,7 +73,18 @@ impl Drone for MyDrone {
                                     let _ = self.forward_packet(error_packet);
                                 } else {
                                     match self.forward_packet(packet.clone()) {
-                                        Ok(()) => {},
+                                        Ok(()) => {
+                                            let sent_packet = NodeEvent::PacketSent(packet.clone())
+                                            match self.sim_contr_send.send(sent_packet) {
+                                                Ok(()) => {
+                                                    // packet successfully sent to simulation controller
+                                                },
+                                                Err(send_error) => {
+                                                    // error while sending packet to simulation controller
+                                                    panic!("{:?}", send_error)
+                                                }
+                                            }
+                                        },
                                         Err(error) => {
                                             let error_packet = create_error_packet(&packet, error);
                                             let _ = self.forward_packet(error_packet);
