@@ -35,17 +35,17 @@ impl Drone for MyDrone {
                 recv(self.packet_recv) -> packet_res => {
                     if let Ok(packet) = packet_res {
                         match &packet.pack_type {
-                            PacketType::Nack(_nack) | PacketType::Ack(_ack) => {
+                            PacketType::Nack(_) | PacketType::Ack(_) => {
                                 match self.forward_packet(packet.clone()) {
                                     Ok(()) => {
-                                        let sent_packet = NodeEvent::PacketSent(packet.clone())
+                                        let sent_packet = NodeEvent::PacketSent(packet.clone());
                                         match self.sim_contr_send.send(sent_packet) {
                                             Ok(()) => {
                                                 // packet successfully sent to simulation controller
                                             },
                                             Err(send_error) => {
                                                 // error while sending packet to simulation controller
-                                                panic!("{:?}", send_error)
+                                                panic!("{send_error:?}")
                                             }
                                         }
                                     },
@@ -74,14 +74,14 @@ impl Drone for MyDrone {
                                 } else {
                                     match self.forward_packet(packet.clone()) {
                                         Ok(()) => {
-                                            let sent_packet = NodeEvent::PacketSent(packet.clone())
+                                            let sent_packet = NodeEvent::PacketSent(packet.clone());
                                             match self.sim_contr_send.send(sent_packet) {
                                                 Ok(()) => {
                                                     // packet successfully sent to simulation controller
                                                 },
                                                 Err(send_error) => {
                                                     // error while sending packet to simulation controller
-                                                    panic!("{:?}", send_error)
+                                                    panic!("{send_error:?}")
                                                 }
                                             }
                                         },
@@ -100,9 +100,13 @@ impl Drone for MyDrone {
                 recv(self.sim_contr_recv) -> command_res => {
                     if let Ok(command) = command_res {
                         match command{
-                            DroneCommand::AddSender(_, sender) => todo!(),
-                            DroneCommand::SetPacketDropRate(pdr) => todo!(),
-                            DroneCommand::Crash => todo!(),
+                            DroneCommand::AddSender(node_id, sender) => {
+                                self.add_channel(node_id, sender);
+                            },
+                            DroneCommand::SetPacketDropRate(pdr) => {
+                                self.set_pdr(pdr);
+                            },
+                            DroneCommand::Crash => unimplemented!(),
                         }
                     }
                 }
@@ -162,6 +166,14 @@ impl MyDrone {
         }
     }
 
+    fn set_pdr(&mut self, pdr: f32) -> Result<(), String> {
+        if (0f32..=100f32).contains(&pdr) {
+            self.pdr = pdr;
+            Ok(())
+        } else {
+            Err("Invalid pdr value".to_string())
+        }
+    }
 
     fn add_channel(&mut self, id: NodeId, sender: Sender<Packet>) {
         self.packet_send.insert(id, sender);
