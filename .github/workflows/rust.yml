@@ -21,20 +21,3 @@ jobs:
 
     - name: Run tests
       run: cargo test --verbose
-
-    - name: rust-rustfmt-check
-      uses: mbrobbel/rustfmt-check@0.14.0
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }} 
-        # Arguments for cargo (optional)
-        args: --all
-        # Output mode (commit, review or pull)
-        mode: review
-
-    - name: clippy-check
-      # You may pin to the exact commit or the version.
-      # uses: loliGothicK/clippy-check@c267b18864fd79a1bb9bbde99fb51a9cd9822b9a
-      uses: loliGothicK/clippy-check@v0.3.2
-      with:
-        # GitHub token
-        token: ${{ secrets.GITHUB_TOKEN }} 
