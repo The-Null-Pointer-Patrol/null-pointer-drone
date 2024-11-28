@@ -1,11 +1,10 @@
-use std::{collections::HashMap, task::Wake};
+use std::collections::HashMap;
 
 use common::default_drone;
 use null_pointer_drone::MyDrone;
 use wg_2024::{
-    controller::{DroneCommand, NodeEvent},
     drone::{Drone, DroneOptions},
-    packet::{Message, Packet},
+    packet::Packet,
 };
 mod common;
 

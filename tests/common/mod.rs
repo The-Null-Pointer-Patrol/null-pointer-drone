@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use crossbeam_channel::{Receiver, Sender};
-use null_pointer_drone::MyDrone;
 use wg_2024::{
     controller::{DroneCommand, NodeEvent},
     drone::{Drone, DroneOptions},
-    packet::Packet,
+    packet::{Fragment, Packet},
 };
 
 pub fn default_drone() -> (
@@ -26,4 +25,13 @@ pub fn default_drone() -> (
         pdr: 0.1,
     };
     (options, r1, s2, s3)
+}
+
+pub fn default_fragment(idx: u64, n_frags: u64) -> Fragment {
+    Fragment {
+        fragment_index: idx,
+        total_n_fragments: n_frags,
+        length: 80,
+        data: [0; 80],
+    }
 }
