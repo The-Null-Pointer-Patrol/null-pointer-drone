@@ -10,7 +10,7 @@ mod common;
 
 #[test]
 #[should_panic(expected = "pdr out of bounds")]
-fn pdr_outofrange() {
+fn pdr_too_big() {
     let (def_drone_opts, _recv_event, _send_command, _send_packet) = default_drone();
     let _my_drone = MyDrone::new(DroneOptions {
         pdr: 345.3,
@@ -19,7 +19,17 @@ fn pdr_outofrange() {
 }
 
 #[test]
-#[should_panic(expected = "neighbor has id 1 which is the same as drone")]
+#[should_panic(expected = "pdr out of bounds")]
+fn pdr_negative() {
+    let (def_drone_opts, _recv_event, _send_command, _send_packet) = default_drone();
+    let _my_drone = MyDrone::new(DroneOptions {
+        pdr: -0.1,
+        ..def_drone_opts
+    });
+}
+
+#[test]
+#[should_panic(expected = "neighbor with id 1 which is the same as drone")]
 fn neighbor_is_self() {
     let (def_drone_opts, _recv_event, _send_command, _send_packet) = default_drone();
 

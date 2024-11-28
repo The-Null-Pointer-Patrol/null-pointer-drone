@@ -1,6 +1,6 @@
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, error::Error, time::Duration};
 
-use common::{default_drone, default_fragment};
+use common::{default_drone, default_fragment, start_drone_thread};
 use crossbeam_channel::unbounded;
 use null_pointer_drone::MyDrone;
 use wg_2024::{
@@ -16,10 +16,12 @@ fn forward_frag() {
     let (s2, r2) = unbounded::<Packet>();
     let mut senders = HashMap::new();
     senders.insert(1, s2);
-    let _my_drone = MyDrone::new(DroneOptions {
+    let my_drone = MyDrone::new(DroneOptions {
         packet_send: senders,
+        pdr: 0.0,
         ..def_drone_opts
     });
+    let handle = start_drone_thread(my_drone);
 
     let frag = default_fragment(0, 10);
 
@@ -34,13 +36,14 @@ fn forward_frag() {
     if let Err(e) = send_packet.send(packet.clone()) {
         panic!("error sending packet to drone")
     };
-    match r2.recv_timeout(Duration::from_millis(200)) {
-        Err(_) => {
-            panic!("timeout receiving packet from drone")
+
+    match r2.recv() {
+        Err(e) => {
+            panic!("error receiving packet: {}", e);
         }
         Ok(packet2) => {
             packet.routing_header.hop_index = 1;
-            // todo: enable when PR gets approved
+            // todo: enable IF PR gets approved
             //assert_eq!(packet2, packet);
         }
     };

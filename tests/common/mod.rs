@@ -1,6 +1,10 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    thread::{self, spawn, JoinHandle},
+};
 
 use crossbeam_channel::{Receiver, Sender};
+use null_pointer_drone::MyDrone;
 use wg_2024::{
     controller::{DroneCommand, NodeEvent},
     drone::{Drone, DroneOptions},
@@ -34,4 +38,10 @@ pub fn default_fragment(idx: u64, n_frags: u64) -> Fragment {
         length: 80,
         data: [0; 80],
     }
+}
+
+pub fn start_drone_thread(mut d: MyDrone) -> JoinHandle<()> {
+    spawn(move || {
+        d.run();
+    })
 }

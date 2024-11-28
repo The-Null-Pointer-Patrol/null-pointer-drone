@@ -1,6 +1,7 @@
+use core::panic;
 use crossbeam_channel::{select, Receiver, Sender};
-use std::collections::{HashMap, HashSet};
 use rand::Rng;
+use std::collections::{HashMap, HashSet};
 use wg_2024::controller::{DroneCommand, NodeEvent};
 use wg_2024::drone::{Drone, DroneOptions};
 use wg_2024::network::{NodeId, SourceRoutingHeader};
@@ -18,13 +19,20 @@ pub struct MyDrone {
 
 impl Drone for MyDrone {
     fn new(options: DroneOptions) -> Self {
+        // TODO: decide if we need more input validation
+        if options.packet_send.contains_key(&options.id) {
+            panic!("neighbor with id {} which is the same as drone", options.id);
+        }
+        if options.pdr > 1.0 || options.pdr < 0.0 {
+            panic!("pdr out of bounds");
+        }
         Self {
             id: options.id,
             sim_contr_send: options.controller_send,
             sim_contr_recv: options.controller_recv,
             packet_recv: options.packet_recv,
             pdr: options.pdr,
-            packet_send: HashMap::new(),
+            packet_send: options.packet_send,
             known_flood_ids: HashSet::new(),
         }
     }
@@ -131,7 +139,7 @@ fn create_error_packet(original_packet: &Packet, nack: Nack) -> Packet {
         pack_type: PacketType::Nack(nack),
         routing_header: SourceRoutingHeader {
             hop_index: 0,
-            hops: reverse_path
+            hops: reverse_path,
         },
         session_id: original_packet.session_id,
     }
@@ -147,16 +155,12 @@ impl MyDrone {
         let hop_index = packet.routing_header.hop_index;
         let next_hop = packet.routing_header.hops.get(hop_index);
         match next_hop {
-            Some(next_node) => {
-                match self.packet_send.get(next_node) {
-                    Some(next_node_channel) => {
-                        let _ = next_node_channel.send(packet);
-                        Ok(())
-                    },
-                    None => {
-                        Err(Nack::ErrorInRouting(*next_node))
-                    }
+            Some(next_node) => match self.packet_send.get(next_node) {
+                Some(next_node_channel) => {
+                    let _ = next_node_channel.send(packet);
+                    Ok(())
                 }
+                None => Err(Nack::ErrorInRouting(*next_node)),
             },
             None => {
                 // if the match expression returns None, it means that the current drone
