@@ -6,7 +6,7 @@ use null_pointer_drone::MyDrone;
 use wg_2024::{
     drone::{Drone, DroneOptions},
     network::SourceRoutingHeader,
-    packet::{Fragment, Packet, PacketType},
+    packet::{Packet, PacketType},
 };
 mod common;
 
