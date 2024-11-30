@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use wg_2024::controller::{DroneCommand, NodeEvent};
 use wg_2024::drone::{Drone, DroneOptions};
 use wg_2024::network::{NodeId, SourceRoutingHeader};
-use wg_2024::packet::{Nack, Packet, PacketType};
+use wg_2024::packet::{Nack, NackType, Packet, PacketType};
 
 pub struct MyDrone {
     id: NodeId,
@@ -77,7 +77,7 @@ impl Drone for MyDrone {
                                 let mut rng = rand::rng();
                                 let random_number: f32 = rng.random_range(0.0..=1.0);
                                 if random_number <= self.pdr {
-                                    let error_packet = create_error_packet(&packet, Nack::Dropped(fragment_index));
+                                    let error_packet = create_error_packet(&packet,Nack{fragment_index,nack_type: NackType::Dropped}) ;
                                     let _ = self.forward_packet(error_packet);
                                 } else {
                                     match self.forward_packet(packet.clone()) {
@@ -154,18 +154,30 @@ impl MyDrone {
         packet.routing_header.hop_index += 1;
         let hop_index = packet.routing_header.hop_index;
         let next_hop = packet.routing_header.hops.get(hop_index);
+        // cloned below because otherwise we have a partial borrow error in the next match
+        let fragment_index = match packet.pack_type.clone() {
+            PacketType::MsgFragment(frag) => frag.fragment_index,
+            // if the packet is not a fragment it is considered as a whole so frag index is 0
+            _ => 0,
+        };
         match next_hop {
             Some(next_node) => match self.packet_send.get(next_node) {
                 Some(next_node_channel) => {
                     let _ = next_node_channel.send(packet);
                     Ok(())
                 }
-                None => Err(Nack::ErrorInRouting(*next_node)),
+                None => Err(Nack {
+                    fragment_index,
+                    nack_type: NackType::ErrorInRouting(*next_node),
+                }),
             },
             None => {
                 // if the match expression returns None, it means that the current drone
                 // is the designed destination
-                Err(Nack::DestinationIsDrone)
+                Err(Nack {
+                    fragment_index,
+                    nack_type: NackType::DestinationIsDrone,
+                })
             }
         }
     }
