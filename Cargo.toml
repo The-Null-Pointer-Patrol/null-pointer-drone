@@ -5,5 +5,13 @@ edition = "2021"
 
 [dependencies]
 crossbeam-channel = "0.5.13"
-wg_2024 = { git = "https://github.com/WGL-2024/WGL_repo_2024.git", features = ["serialize"] }
+wg_2024 = { git = "https://github.com/WGL-2024/WGL_repo_2024.git", features = ["serialize"],rev="9c46c3e8ca061089fb83c920cf6321eb228613ba" }
 rand = "0.9.0-alpha.2"
+eframe = {version="0.29.1",optional=true}
+winit = "0.30.5"
+egui = {version="0.29.1",optional=true}
+
+[features]
+# todo:remove, added to be able to test whole thing  
+default = ["gui"]
+gui = ["dep:eframe","dep:egui"]

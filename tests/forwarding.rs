@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error, time::Duration};
+use std::{collections::HashMap, error::Error, thread, time::Duration};
 
 use common::{default_drone, default_fragment, start_drone_thread};
 use crossbeam_channel::unbounded;
@@ -47,4 +47,5 @@ fn forward_frag() {
             //assert_eq!(packet2, packet);
         }
     };
+    thread::sleep(Duration::from_secs(234));
 }

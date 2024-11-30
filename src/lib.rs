@@ -1,11 +1,23 @@
 use core::panic;
-use crossbeam_channel::{select, Receiver, Sender};
+use crossbeam_channel::{select, unbounded, Receiver, Sender};
 use rand::Rng;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use wg_2024::controller::{DroneCommand, NodeEvent};
 use wg_2024::drone::{Drone, DroneOptions};
 use wg_2024::network::{NodeId, SourceRoutingHeader};
 use wg_2024::packet::{Nack, Packet, PacketType};
+
+#[cfg(feature = "gui")]
+mod statistics;
+
+#[cfg(feature = "gui")]
+use statistics::{DroneApp, DroneAppMessage};
+
+#[cfg(feature = "gui")]
+use eframe::App;
+
+#[cfg(feature = "gui")]
+use std::thread;
 
 pub struct MyDrone {
     id: NodeId,
@@ -15,6 +27,10 @@ pub struct MyDrone {
     pdr: f32,
     packet_send: HashMap<NodeId, Sender<Packet>>,
     known_flood_ids: HashSet<u64>, // TODO: use this field
+    #[cfg(feature = "gui")]
+    packets_sent: VecDeque<Packet>,
+    #[cfg(feature = "gui")]
+    packets_recvd: VecDeque<Packet>,
 }
 
 impl Drone for MyDrone {
@@ -34,10 +50,29 @@ impl Drone for MyDrone {
             pdr: options.pdr,
             packet_send: options.packet_send,
             known_flood_ids: HashSet::new(),
+            #[cfg(feature = "gui")]
+            packets_sent: VecDeque::new(),
+            #[cfg(feature = "gui")]
+            packets_recvd: VecDeque::new(),
         }
     }
 
     fn run(&mut self) {
+        #[cfg(feature = "gui")]
+        let (send, recv) = unbounded::<DroneAppMessage>();
+        #[cfg(feature = "gui")]
+        {
+            let id = self.id;
+            thread::spawn(move || {
+                let native_options = eframe::NativeOptions::default();
+                let _ = eframe::run_native(
+                    "My drone app",
+                    native_options,
+                    //Box::new(|cc| Ok(Box::new(DroneApp::new(cc, id, recv)))),
+                    Box::new(|cc| Ok(Box::new(DroneApp::new(cc, 4, recv)))),
+                );
+            });
+        }
         loop {
             select! {
                 recv(self.packet_recv) -> packet_res => {
@@ -49,6 +84,8 @@ impl Drone for MyDrone {
                                         let sent_packet = NodeEvent::PacketSent(packet.clone());
                                         match self.sim_contr_send.send(sent_packet) {
                                             Ok(()) => {
+                                                #[cfg(feature = "gui")]
+                                                send.send(DroneAppMessage::Event(NodeEvent::PacketSent(packet.clone())));
                                                 // packet successfully sent to simulation controller
                                             },
                                             Err(send_error) => {
