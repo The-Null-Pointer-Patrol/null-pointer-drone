@@ -44,7 +44,7 @@ fn forward_frag() {
         Ok(packet2) => {
             packet.routing_header.hop_index = 1;
             // todo: enable IF PR gets approved
-            //assert_eq!(packet2, packet);
+            assert_eq!(packet2, packet);
         }
     };
 }

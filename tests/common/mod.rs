@@ -36,7 +36,7 @@ pub fn default_fragment(idx: u64, n_frags: u64) -> Fragment {
         fragment_index: idx,
         total_n_fragments: n_frags,
         length: 80,
-        data: [0; 80],
+        data: [0; 128],
     }
 }
 
