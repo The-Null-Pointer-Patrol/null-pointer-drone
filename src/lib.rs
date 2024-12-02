@@ -183,7 +183,7 @@ impl MyDrone {
     }
 
     fn set_pdr(&mut self, pdr: f32) -> Result<(), String> {
-        if (0f32..=100f32).contains(&pdr) {
+        if (0f32..=1f32).contains(&pdr) {
             self.pdr = pdr;
             Ok(())
         } else {
