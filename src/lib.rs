@@ -2,15 +2,15 @@ use core::panic;
 use crossbeam_channel::{select, Receiver, Sender};
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
-use wg_2024::controller::{DroneCommand, NodeEvent};
-use wg_2024::drone::{Drone, DroneOptions};
+use wg_2024::controller::{DroneCommand, DroneEvent};
+use wg_2024::drone::Drone;
 use wg_2024::network::{NodeId, SourceRoutingHeader};
 use wg_2024::packet::{Nack, NackType, Packet, PacketType};
 
 pub struct MyDrone {
     id: NodeId,
-    sim_contr_send: Sender<NodeEvent>,
-    sim_contr_recv: Receiver<DroneCommand>,
+    controller_send: Sender<DroneEvent>,
+    controller_recv: Receiver<DroneCommand>,
     packet_recv: Receiver<Packet>,
     pdr: f32,
     packet_send: HashMap<NodeId, Sender<Packet>>,
@@ -18,21 +18,24 @@ pub struct MyDrone {
 }
 
 impl Drone for MyDrone {
-    fn new(options: DroneOptions) -> Self {
+    fn new(
+        id: NodeId,
+        controller_send: Sender<DroneEvent>,
+        controller_recv: Receiver<DroneCommand>,
+        packet_recv: Receiver<Packet>,
+        packet_send: HashMap<NodeId, Sender<Packet>>,
+        pdr: f32,
+    ) -> Self {
         // TODO: decide if we need more input validation
-        if options.packet_send.contains_key(&options.id) {
-            panic!("neighbor with id {} which is the same as drone", options.id);
-        }
-        if options.pdr > 1.0 || options.pdr < 0.0 {
-            panic!("pdr out of bounds");
-        }
+        assert!(!packet_send.contains_key(&id), "neighbor with id {id} which is the same as drone");
+        assert!((0.0..=1.0).contains(&pdr), "pdr out of bounds");
         Self {
-            id: options.id,
-            sim_contr_send: options.controller_send,
-            sim_contr_recv: options.controller_recv,
-            packet_recv: options.packet_recv,
-            pdr: options.pdr,
-            packet_send: options.packet_send,
+            id,
+            controller_send,
+            controller_recv,
+            packet_recv,
+            pdr,
+            packet_send,
             known_flood_ids: HashSet::new(),
         }
     }
@@ -46,8 +49,8 @@ impl Drone for MyDrone {
                             PacketType::Nack(_) | PacketType::Ack(_) => {
                                 match self.forward_packet(packet.clone()) {
                                     Ok(()) => {
-                                        let sent_packet = NodeEvent::PacketSent(packet.clone());
-                                        match self.sim_contr_send.send(sent_packet) {
+                                        let sent_packet = DroneEvent::PacketSent(packet.clone());
+                                        match self.controller_send.send(sent_packet) {
                                             Ok(()) => {
                                                 // packet successfully sent to simulation controller
                                             },
@@ -82,8 +85,8 @@ impl Drone for MyDrone {
                                 } else {
                                     match self.forward_packet(packet.clone()) {
                                         Ok(()) => {
-                                            let sent_packet = NodeEvent::PacketSent(packet.clone());
-                                            match self.sim_contr_send.send(sent_packet) {
+                                            let sent_packet = DroneEvent::PacketSent(packet.clone());
+                                            match self.controller_send.send(sent_packet) {
                                                 Ok(()) => {
                                                     // packet successfully sent to simulation controller
                                                 },
@@ -105,9 +108,10 @@ impl Drone for MyDrone {
                         }
                     }
                 },
-                recv(self.sim_contr_recv) -> command_res => {
+                recv(self.controller_recv) -> command_res => {
                     if let Ok(command) = command_res {
-                        match command{
+                        match command
+                        {
                             DroneCommand::AddSender(node_id, sender) => {
                                 self.add_channel(node_id, sender);
                             },
@@ -115,6 +119,7 @@ impl Drone for MyDrone {
                                 self.set_pdr(pdr);
                             },
                             DroneCommand::Crash => unimplemented!(),
+                            DroneCommand::RemoveSender(_) => unimplemented!()
                         }
                     }
                 }
@@ -182,13 +187,9 @@ impl MyDrone {
         }
     }
 
-    fn set_pdr(&mut self, pdr: f32) -> Result<(), String> {
-        if (0f32..=1f32).contains(&pdr) {
-            self.pdr = pdr;
-            Ok(())
-        } else {
-            Err("Invalid pdr value".to_string())
-        }
+    fn set_pdr(&mut self, pdr: f32) {
+        assert!((0f32..=1f32).contains(&pdr), "Tried to set an invalid pdr value of {pdr}, which is not in range (0.0..=1.0)");
+        self.pdr = pdr;
     }
 
     fn add_channel(&mut self, id: NodeId, sender: Sender<Packet>) {
