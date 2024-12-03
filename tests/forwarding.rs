@@ -1,6 +1,6 @@
 use std::{collections::HashMap, error::Error, time::Duration};
 
-use common::{default_drone, default_fragment, start_drone_thread};
+use common::{create_channels, default_fragment, start_drone_thread};
 use crossbeam_channel::unbounded;
 use null_pointer_drone::MyDrone;
 use wg_2024::{
@@ -12,7 +12,7 @@ mod common;
 
 #[test]
 fn forward_frag() {
-    let (controller_send, controller_recv, packet_recv, packet_send) = default_drone();
+    let (controller_send, _, _, controller_recv, packet_send, packet_recv) = create_channels();
     let (s2, r2) = unbounded::<Packet>();
     let mut senders = HashMap::new();
     senders.insert(1, s2);

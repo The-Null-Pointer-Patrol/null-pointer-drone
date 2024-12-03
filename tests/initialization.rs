@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use common::default_drone;
+use common::create_channels;
 use null_pointer_drone::MyDrone;
 use wg_2024::{drone::Drone, packet::Packet};
 
@@ -9,7 +9,7 @@ mod common;
 #[test]
 #[should_panic(expected = "pdr out of bounds")]
 fn pdr_too_big() {
-    let (controller_send, controller_recv, packet_recv, _packet_send) = default_drone();
+    let (controller_send, _, _, controller_recv, _packet_send, packet_recv) = create_channels();
     let _my_drone = MyDrone::new(
         0,
         controller_send,
@@ -23,7 +23,7 @@ fn pdr_too_big() {
 #[test]
 #[should_panic(expected = "pdr out of bounds")]
 fn pdr_negative() {
-    let (controller_send, controller_recv, packet_recv, _packet_send) = default_drone();
+    let (controller_send, _, _, controller_recv, _packet_send, packet_recv) = create_channels();
     let _my_drone = MyDrone::new(
         0,
         controller_send,
@@ -37,7 +37,7 @@ fn pdr_negative() {
 #[test]
 #[should_panic(expected = "neighbor with id 1 which is the same as drone")]
 fn neighbor_is_self() {
-    let (controller_send, controller_recv, packet_recv, _packet_send) = default_drone();
+    let (controller_send, _, _, controller_recv, _packet_send, packet_recv) = create_channels();
 
     let (sender, _) = crossbeam_channel::unbounded::<Packet>();
     let mut senders = HashMap::new();
