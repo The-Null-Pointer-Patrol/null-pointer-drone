@@ -4,7 +4,7 @@ use common::{default_drone, default_fragment, start_drone_thread};
 use crossbeam_channel::unbounded;
 use null_pointer_drone::MyDrone;
 use wg_2024::{
-    drone::{Drone, DroneOptions},
+    drone::Drone,
     network::SourceRoutingHeader,
     packet::{Packet, PacketType},
 };
@@ -12,15 +12,18 @@ mod common;
 
 #[test]
 fn forward_frag() {
-    let (def_drone_opts, _recv_event, _send_command, send_packet) = default_drone();
+    let (controller_send, controller_recv, packet_recv, packet_send) = default_drone();
     let (s2, r2) = unbounded::<Packet>();
     let mut senders = HashMap::new();
     senders.insert(1, s2);
-    let my_drone = MyDrone::new(DroneOptions {
-        packet_send: senders,
-        pdr: 0.0,
-        ..def_drone_opts
-    });
+    let my_drone = MyDrone::new(
+        0,
+        controller_send,
+        controller_recv,
+        packet_recv,
+        senders,
+        0.0,
+    );
     let handle = start_drone_thread(my_drone);
 
     let frag = default_fragment(0, 10);
@@ -33,7 +36,7 @@ fn forward_frag() {
         },
         session_id: 100,
     };
-    if let Err(e) = send_packet.send(packet.clone()) {
+    if let Err(e) = packet_send.send(packet.clone()) {
         panic!("error sending packet to drone")
     };
 
