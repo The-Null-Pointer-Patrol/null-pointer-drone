@@ -150,7 +150,16 @@ impl Drone for MyDrone {
                             DroneCommand::Crash => {
                                 self.state = State::Crashing,
                             },
-                            DroneCommand::RemoveSender(_) => unimplemented!()
+                            DroneCommand::RemoveSender(node_id_to_be_removed) => {
+                                match self.packet_send.remove(&node_id_to_be_removed) {
+                                    Some(_removed_channel) => {
+                                        log::info!("Channel to {node_id_to_be_removed} removed successfully");
+                                    },
+                                    None => {
+                                        panic!("Cannot remove channel to {node_id_to_be_removed}: it does not exist")
+                                    },
+                                }
+                            },
                         }
                     }
                 }
