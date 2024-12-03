@@ -7,6 +7,11 @@ use wg_2024::drone::Drone;
 use wg_2024::network::{NodeId, SourceRoutingHeader};
 use wg_2024::packet::{Nack, NackType, Packet, PacketType};
 
+enum State {
+    Working,
+    Crashing,
+}
+
 pub struct MyDrone {
     id: NodeId,
     controller_send: Sender<DroneEvent>,
@@ -15,6 +20,7 @@ pub struct MyDrone {
     pdr: f32,
     packet_send: HashMap<NodeId, Sender<Packet>>,
     known_flood_ids: HashSet<u64>, // TODO: use this field
+    state: State,
 }
 
 impl Drone for MyDrone {
@@ -37,15 +43,31 @@ impl Drone for MyDrone {
             pdr,
             packet_send,
             known_flood_ids: HashSet::new(),
+            state: State::Working,
         }
     }
 
     fn run(&mut self) {
-        loop {
+        'loop_label: loop {
             select! {
                 recv(self.packet_recv) -> packet_res => {
-                    if let Ok(packet) = packet_res {
-                        match &packet.pack_type {
+                    match packet_res {
+                        Err(err) => {
+                            match err {
+                                _recv_error => {
+                                    match &self.state {
+                                        State::Working => {
+                                            panic!("There is no connected sender to the drone's receiver channel and no DroneCommand::Crash has been received")
+                                        },
+                                        State::Crashing => {
+                                            break 'loop_label
+                                        },
+                                    }
+                                }
+                            }
+                        }
+                        Ok(packet) => {
+                            match &packet.pack_type {
                             PacketType::Nack(_) | PacketType::Ack(_) => {
                                 match self.forward_packet(packet.clone()) {
                                     Ok(()) => {
@@ -66,6 +88,7 @@ impl Drone for MyDrone {
                                     }
                                 }
                             },
+                                /*
                             // PacketType::Ack(_ack) => {
                             //     match self.forward_packet(packet.clone()) {
                             //         Ok(()) => {},
@@ -75,6 +98,7 @@ impl Drone for MyDrone {
                             //         }
                             //     }
                             // },
+                           */
                             PacketType::MsgFragment(fragment) => {
                                 let fragment_index = fragment.fragment_index;
                                 let mut rng = rand::rng();
@@ -103,8 +127,13 @@ impl Drone for MyDrone {
                                     }
                                 }
                             },
-                            PacketType::FloodRequest(_) => unimplemented!(),
-                            PacketType::FloodResponse(_) => unimplemented!(),
+                            PacketType::FloodRequest(_) => {
+
+                                },
+                            PacketType::FloodResponse(_) => {
+                                    unimplemented!()
+                                },
+                            }
                         }
                     }
                 },
@@ -118,7 +147,9 @@ impl Drone for MyDrone {
                             DroneCommand::SetPacketDropRate(pdr) => {
                                 self.set_pdr(pdr);
                             },
-                            DroneCommand::Crash => unimplemented!(),
+                            DroneCommand::Crash => {
+                                self.state = State::Crashing,
+                            },
                             DroneCommand::RemoveSender(_) => unimplemented!()
                         }
                     }
