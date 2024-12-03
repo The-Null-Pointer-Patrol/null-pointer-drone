@@ -43,13 +43,21 @@ fn flood_request() {
     if let Err(_e) = packet_send.send(packet.clone()) {
         panic!("error sending packet to drone")
     };
+
+    // change packet to expected
+    packet.routing_header.hop_index = 1;
+    packet.pack_type = PacketType::FloodRequest(FloodRequest {
+        flood_id: 1,
+        initiator_id: 100,
+        path_trace: vec![(100, NodeType::Client), (1, NodeType::Drone)],
+    });
+
     for r in [r2, r3, r4] {
         match r.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
             Err(e) => {
                 panic!("error receiving packet: {}", e);
             }
             Ok(p2) => {
-                packet.routing_header.hop_index = 1;
                 // todo: enable IF PR gets approved
                 assert_eq!(p2, packet);
             }
