@@ -21,7 +21,7 @@ pub struct MyDrone {
     packet_recv: Receiver<Packet>,
     pdr: f32,
     packet_send: HashMap<NodeId, Sender<Packet>>,
-    known_flood_ids: RefCell<HashSet<u64>>, // TODO: use this field
+    known_flood_ids: RefCell<HashSet<u64>>,
     state: State,
     // rng: ThreadRng,
 }
@@ -313,6 +313,102 @@ impl MyDrone {
             None => {
                 log::info!("Sender to node {id} inserted");
             },
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod common {
+        use std::thread::{spawn, JoinHandle};
+        use crossbeam_channel::{Receiver, Sender};
+        use wg_2024::controller::{DroneCommand, DroneEvent};
+        use wg_2024::drone::Drone;
+        use wg_2024::packet::{Fragment, Packet};
+        use crate::MyDrone;
+
+        pub fn default_drone() -> (
+            Sender<DroneEvent>,
+            Receiver<DroneCommand>,
+            Receiver<Packet>,
+            Sender<Packet>,
+        ) {
+            let (s1, r1) = crossbeam_channel::unbounded::<DroneEvent>();
+            let (s2, r2) = crossbeam_channel::unbounded::<DroneCommand>();
+            let (s3, r3) = crossbeam_channel::unbounded::<Packet>();
+            (s1, r2, r3, s3)
+        }
+
+        pub fn default_fragment(idx: u64, n_frags: u64) -> Fragment {
+            Fragment {
+                fragment_index: idx,
+                total_n_fragments: n_frags,
+                length: 80,
+                data: [0; 128],
+            }
+        }
+
+        pub fn start_drone_thread(mut d: MyDrone) -> JoinHandle<()> {
+            spawn(move || {
+                d.run();
+            })
+        }
+
+    }
+
+    mod initialization {
+        use super::*;
+        use std::collections::HashMap;
+        use wg_2024::drone::Drone;
+        use wg_2024::packet::Packet;
+        use crate::tests::common::default_drone;
+
+        #[test]
+        #[should_panic(expected = "pdr out of bounds")]
+        fn pdr_too_big() {
+            let (controller_send, controller_recv, packet_recv, packet_send) = default_drone();
+            let _my_drone = MyDrone::new(
+                0,
+                controller_send,
+                controller_recv,
+                packet_recv,
+                HashMap::new(),
+                3.14
+            );
+        }
+
+        #[test]
+        #[should_panic(expected = "pdr out of bounds")]
+        fn pdr_negative() {
+            let (controller_send, controller_recv, packet_recv, packet_send) = default_drone();
+            let _my_drone = MyDrone::new(
+                0,
+                controller_send,
+                controller_recv,
+                packet_recv,
+                HashMap::new(),
+                -0.1
+            );
+        }
+
+        #[test]
+        #[should_panic(expected = "neighbor with id 1 which is the same as drone")]
+        fn neighbor_is_self() {
+            let (controller_send, controller_recv, packet_recv, packet_send) = default_drone();
+
+            let (sender, _) = crossbeam_channel::unbounded::<Packet>();
+            let mut senders = HashMap::new();
+            senders.insert(1, sender);
+            let _my_drone = MyDrone::new(
+                1,
+                controller_send,
+                controller_recv,
+                packet_recv,
+                senders,
+                0.3
+            );
         }
     }
 }
