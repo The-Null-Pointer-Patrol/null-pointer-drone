@@ -1,4 +1,5 @@
 use core::panic;
+use std::cell::RefCell;
 use crossbeam_channel::{select, Receiver, Sender};
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
@@ -20,7 +21,7 @@ pub struct MyDrone {
     packet_recv: Receiver<Packet>,
     pdr: f32,
     packet_send: HashMap<NodeId, Sender<Packet>>,
-    known_flood_ids: HashSet<u64>, // TODO: use this field
+    known_flood_ids: RefCell<HashSet<u64>>, // TODO: use this field
     state: State,
     // rng: ThreadRng,
 }
@@ -44,7 +45,7 @@ impl Drone for MyDrone {
             packet_recv,
             pdr,
             packet_send,
-            known_flood_ids: HashSet::new(),
+            known_flood_ids: RefCell::new(HashSet::new()),
             state: State::Working,
             // rng: rand::rng(),
         }
@@ -218,7 +219,7 @@ impl MyDrone {
                     .filter(|(node_id, _channel)| **node_id != *received_from)
                     .count() == 0;
 
-                if self.known_flood_ids.contains(&flood_id) || drone_has_no_other_neighbors {
+                if self.known_flood_ids.borrow().contains(&flood_id) || drone_has_no_other_neighbors {
                     let flood_response = PacketType::FloodResponse (
                         FloodResponse {
                             flood_id,
@@ -237,6 +238,8 @@ impl MyDrone {
                     self.send_packet_to_neighbor(flood_response_packet);
                 } else {
                     // TODO: check this else branch again
+                    self.known_flood_ids.borrow_mut().insert(flood_id);
+
                     let flood_request = FloodRequest {
                         flood_id,
                         initiator_id: flood_request.initiator_id,
