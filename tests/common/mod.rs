@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     thread::{self, spawn, JoinHandle},
 };
-
+pub const RECV_WAIT_TIME: u64 = 200;
 use crossbeam_channel::{Receiver, Sender};
 use null_pointer_drone::MyDrone;
 use wg_2024::controller::DroneEvent;

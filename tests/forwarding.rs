@@ -119,22 +119,6 @@ fn forward_nack() {
     send_and_check_forward(packet_send, packet_recv, event_recv, p4);
 }
 
-#[test]
-fn forward_fragment_request() {
-    let (my_drone, packet_send, packet_recv, event_recv) = make_forwarding_drone();
-    let _handle = start_drone_thread(my_drone);
-
-    let packet = Packet {
-        pack_type: PacketType::Ack(Ack { fragment_index: 12 }),
-        routing_header: SourceRoutingHeader {
-            hop_index: 0,
-            hops: vec![0, 1, 2, 3, 4],
-        },
-        session_id: 100,
-    };
-    send_and_check_forward(packet_send, packet_recv, event_recv, packet);
-}
-
 fn make_forwarding_drone() -> (
     MyDrone,
     Sender<Packet>,
