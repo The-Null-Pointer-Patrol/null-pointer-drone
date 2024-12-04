@@ -8,7 +8,7 @@ use wg_2024::{
     controller::DroneEvent,
     drone::Drone,
     network::SourceRoutingHeader,
-    packet::{Ack, Nack, NackType, Packet, PacketType},
+    packet::{Ack, FloodResponse, Nack, NackType, NodeType, Packet, PacketType},
 };
 mod common;
 
@@ -43,6 +43,26 @@ fn forward_ack() {
         },
         session_id: 100,
     };
+    send_and_check_forward(packet_send, packet_recv, event_recv, packet);
+}
+
+#[test]
+fn forward_flood_response() {
+    let (my_drone, packet_send, packet_recv, event_recv) = make_forwarding_drone();
+    let _handle = start_drone_thread(my_drone);
+
+    let packet = Packet {
+        pack_type: PacketType::FloodResponse(FloodResponse {
+            flood_id: 100,
+            path_trace: vec![(100, NodeType::Drone)],
+        }),
+        routing_header: SourceRoutingHeader {
+            hop_index: 1,
+            hops: vec![100, 0, 1],
+        },
+        session_id: 100,
+    };
+
     send_and_check_forward(packet_send, packet_recv, event_recv, packet);
 }
 
@@ -154,7 +174,7 @@ fn send_and_check_forward(
             panic!("error receiving packet: {}", e);
         }
         Ok(p2) => {
-            p.routing_header.hop_index = 1;
+            p.routing_header.hop_index = p.routing_header.hop_index + 1;
             // todo: enable IF PR gets approved
             assert_eq!(p2, p);
         }

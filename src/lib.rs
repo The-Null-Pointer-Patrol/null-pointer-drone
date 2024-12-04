@@ -125,7 +125,7 @@ impl MyDrone {
             }
 
             let current_hop = packet.routing_header.hops.get(current_index).unwrap();
-            if packet.routing_header.hops[*current_hop as usize] != self.id {
+            if *current_hop != self.id {
                 let nack =
                     Self::create_nack_packet(&packet, NackType::UnexpectedRecipient(self.id));
                 self.send_packet_to_neighbor(nack);
