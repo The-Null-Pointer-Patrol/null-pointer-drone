@@ -34,8 +34,8 @@ fn flood_request_propagation() {
             path_trace: vec![(100, NodeType::Client)],
         }),
         routing_header: SourceRoutingHeader {
-            hop_index: 0,
-            hops: vec![],
+            hop_index: 1,
+            hops: vec![0, 1, 2, 3, 4],
         },
         session_id: 100,
     };
@@ -46,6 +46,7 @@ fn flood_request_propagation() {
 
     // change packet to expected
     packet.routing_header.hop_index = 0;
+    packet.routing_header.hops = vec![];
     packet.pack_type = PacketType::FloodRequest(FloodRequest {
         flood_id: 1,
         initiator_id: 100,
@@ -109,8 +110,8 @@ fn flood_request_no_neighbors() {
         }),
 
         routing_header: SourceRoutingHeader {
-            hop_index: 0,
-            hops: vec![],
+            hop_index: 1, // TODO: is this supposed to be 1 and not 0, right?
+            hops: vec![1, 100],
         },
         session_id: 100,
     };

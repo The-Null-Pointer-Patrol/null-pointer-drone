@@ -221,20 +221,27 @@ impl MyDrone {
             // there is no hops vec to reverse in sourcerouting header because
             // floodrequest ignores it, path trace is used instead
 
+            let hops: Vec<NodeId> = new_path_trace
+                .iter()
+                .map(|(id, _)| id)
+                .rev()
+                .copied()
+                .collect();
+
             let flood_response_packet = Packet {
                 pack_type: flood_response,
-                routing_header: SourceRoutingHeader { hop_index: 0, hops: vec![] },
+                routing_header: SourceRoutingHeader { hop_index: 1, hops },
                 session_id: packet.session_id,
             };
-            let channel = match self.packet_send.get(received_from) {
-                Some(s) => s,
-                None => panic!("Sender for {received_from} not found"), // would this panic if the
-                // drone which sent the flood request (i.e. received_from) crashed just after
-                // forwarding the request?
-                // If so, can't we just shortcut the response to simulation controller if this happens
-                // instead of panicking?
-            };
-            self.send_packet_and_notify_simulation_controller(channel, flood_response_packet);
+            if let Some(channel) = self.packet_send.get(received_from) {
+                self.send_packet_and_notify_simulation_controller(channel, flood_response_packet);
+            } else {
+                // This happens when the sender of the flood request crashes before the drone sends
+                // to is a flood response. Flood responses cannot be dropped, so a simulation
+                // controller shortcut is needed
+                let event = DroneEvent::ControllerShortcut(flood_response_packet);
+                self.send_event_to_simulation_controller(&event);
+            }
         } else {
             self.known_flood_ids.borrow_mut().insert(flood_id);
 
