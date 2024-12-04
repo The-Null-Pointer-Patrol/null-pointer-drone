@@ -233,7 +233,11 @@ impl MyDrone {
             };
             let channel = match self.packet_send.get(received_from) {
                 Some(s) => s,
-                None => panic!("Sender for {received_from} not found"),
+                None => panic!("Sender for {received_from} not found"), // would this panic if the
+                // drone which sent the flood request (i.e. received_from) crashed just after
+                // forwarding the request?
+                // If so, can't we just shortcut the response to simulation controller if this happens
+                // instead of panicking?
             };
             self.send_packet_and_notify_simulation_controller(channel, flood_response_packet);
         } else {
