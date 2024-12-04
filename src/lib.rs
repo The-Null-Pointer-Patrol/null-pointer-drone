@@ -220,22 +220,28 @@ impl MyDrone {
             });
             // there is no hops vec to reverse in sourcerouting header because
             // floodrequest ignores it, path trace is used instead
+
             let hops: Vec<NodeId> = new_path_trace
                 .iter()
                 .map(|(id, _)| id)
                 .rev()
                 .copied()
                 .collect();
+
             let flood_response_packet = Packet {
                 pack_type: flood_response,
                 routing_header: SourceRoutingHeader { hop_index: 1, hops },
                 session_id: packet.session_id,
             };
-            let channel = match self.packet_send.get(received_from) {
-                Some(s) => s,
-                None => panic!("Sender for {received_from} not found"),
-            };
-            self.send_packet_and_notify_simulation_controller(channel, flood_response_packet);
+            if let Some(channel) = self.packet_send.get(received_from) {
+                self.send_packet_and_notify_simulation_controller(channel, flood_response_packet);
+            } else {
+                // This happens when the sender of the flood request crashes before the drone sends
+                // to is a flood response. Flood responses cannot be dropped, so a simulation
+                // controller shortcut is needed
+                let event = DroneEvent::ControllerShortcut(flood_response_packet);
+                self.send_event_to_simulation_controller(&event);
+            }
         } else {
             self.known_flood_ids.borrow_mut().insert(flood_id);
 
@@ -245,7 +251,6 @@ impl MyDrone {
                 path_trace: new_path_trace,
             };
             let packet_type = PacketType::FloodRequest(flood_request);
-            let previous_routing_header = packet.routing_header.clone();
 
             let next_hops_to_forward_packet_to: Vec<NodeId> = self
                 .packet_send
@@ -256,7 +261,10 @@ impl MyDrone {
                 .collect();
 
             for next_hop in &next_hops_to_forward_packet_to {
-                let routing_header = previous_routing_header.clone();
+                let routing_header = SourceRoutingHeader {
+                    hop_index: 0,
+                    hops: vec![],
+                };
                 let packet = Packet {
                     pack_type: packet_type.clone(),
                     routing_header,
