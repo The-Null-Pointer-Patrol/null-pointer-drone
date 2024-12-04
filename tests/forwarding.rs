@@ -174,7 +174,7 @@ fn send_and_check_forward(
             panic!("error receiving packet: {}", e);
         }
         Ok(p2) => {
-            p.routing_header.hop_index = p.routing_header.hop_index + 1;
+            p.routing_header.hop_index += 1;
             // todo: enable IF PR gets approved
             assert_eq!(p2, p);
         }

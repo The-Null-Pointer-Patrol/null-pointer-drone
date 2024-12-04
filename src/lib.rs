@@ -151,9 +151,12 @@ impl MyDrone {
             .hops
             .get(packet.routing_header.hop_index)
             .unwrap();
+
         let channel = match self.packet_send.get(next_hop) {
             Some(s) => s,
-            None => panic!("Sender for {next_hop} not found"),
+            None => {
+                panic!("Sender for {next_hop} not found. Drone was trying to send packet {packet}")
+            }
         };
 
         match &packet.pack_type {
@@ -289,7 +292,7 @@ impl MyDrone {
         match channel.send(packet.clone()) {
             Ok(()) => {
                 log::info!(
-                    "Packet {:?} successfully sent into channel {channel:?}",
+                    "Packet {} successfully sent into channel {channel:?}",
                     &packet
                 );
                 let drone_event = DroneEvent::PacketSent(packet);
@@ -297,7 +300,7 @@ impl MyDrone {
             }
             Err(error) => {
                 panic!(
-                    "Cannot send packet {:?} into channel {channel:?}. Error: {error:?}",
+                    "Cannot send packet {} into channel {channel:?}. Error: {error:?}",
                     &packet
                 );
             }
@@ -309,13 +312,13 @@ impl MyDrone {
         match self.controller_send.send(event.clone()) {
             Ok(()) => {
                 log::info!(
-                    "Event {:?} successfully sent to simulation controller",
+                    "Event {} successfully sent to simulation controller",
                     &event
                 );
             }
             Err(error) => {
                 panic!(
-                    "Cannot send event {:?} to simulation controller. Error: {error:?}",
+                    "Cannot send event {} to simulation controller. Error: {error:?}",
                     &event
                 );
             }
