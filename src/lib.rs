@@ -1,9 +1,9 @@
 use core::panic;
-use std::cell::RefCell;
 use crossbeam_channel::{select, Receiver, Sender};
+use log::warn;
 use rand::Rng;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use rand::rngs::ThreadRng;
 use wg_2024::controller::{DroneCommand, DroneEvent};
 use wg_2024::drone::Drone;
 use wg_2024::network::{NodeId, SourceRoutingHeader};
@@ -36,7 +36,10 @@ impl Drone for MyDrone {
         pdr: f32,
     ) -> Self {
         // TODO: decide if we need more input validation
-        assert!(!packet_send.contains_key(&id), "neighbor with id {id} which is the same as drone");
+        assert!(
+            !packet_send.contains_key(&id),
+            "neighbor with id {id} which is the same as drone"
+        );
         assert!((0.0..=1.0).contains(&pdr), "pdr out of bounds");
         Self {
             id,
@@ -105,34 +108,233 @@ impl Drone for MyDrone {
 
 impl MyDrone {
     fn process_packet(&self, mut packet: Packet) {
-        // step 1 (merged with step 3)
-        let current_index = packet.routing_header.hop_index;
-        if current_index >= packet.routing_header.hops.len() {
-            let nack = Self::create_nack_packet(&packet, NackType::UnexpectedRecipient(self.id));
-            self.send_packet_to_neighbor(nack);
-            return;
+        match packet.pack_type {
+            // flood requests do not care about source routing header so there is another logic for
+            // them
+            PacketType::FloodRequest(_) => self.process_flood_request(packet),
+            // for the other types there are some checks on the hops vector
+            _ => {
+                let current_index = packet.routing_header.hop_index;
+                if current_index >= packet.routing_header.hops.len() {
+                    let nack =
+                        Self::create_nack_packet(&packet, NackType::UnexpectedRecipient(self.id));
+                    self.forward_packet(nack);
+                    return;
+                }
+
+                if current_index == packet.routing_header.hops.len() - 1 {
+                    let nack = Self::create_nack_packet(&packet, NackType::DestinationIsDrone);
+                    self.forward_packet(nack);
+                    return;
+                }
+
+                let current_hop = packet.routing_header.hops.get(current_index).unwrap();
+                if *current_hop != self.id {
+                    let nack =
+                        Self::create_nack_packet(&packet, NackType::UnexpectedRecipient(self.id));
+                    self.forward_packet(nack);
+                    return;
+                }
+
+                packet.routing_header.hop_index += 1;
+                self.forward_packet(packet);
+            }
         }
-
-        // TODO: I guess that this sends NackType::DestinationIsDrone when receiving flood requests, which is wrong
-        if current_index == packet.routing_header.hops.len() - 1 {
-            let nack = Self::create_nack_packet(&packet, NackType::DestinationIsDrone);
-            self.send_packet_to_neighbor(nack);
-            return;
-        }
-
-        let current_hop = packet.routing_header.hops.get(current_index).unwrap();
-        if packet.routing_header.hops[*current_hop as usize] != self.id {
-            let nack = Self::create_nack_packet(&packet, NackType::UnexpectedRecipient(self.id));
-            self.send_packet_to_neighbor(nack);
-            return;
-        }
-
-        // step 2
-        packet.routing_header.hop_index += 1;
-
-        self.send_packet_to_neighbor(packet);
     }
 
+    /// panics if `packet.routing_header.hop_index` is not a key of `self.packet_send`
+    /// panics if passed a floodrequest packet
+    fn forward_packet(&self, packet: Packet) {
+        // todo: have some descriptive panic instead of unwrap
+        let next_hop = packet
+            .routing_header
+            .hops
+            .get(packet.routing_header.hop_index)
+            .unwrap();
+        let channel = match self.packet_send.get(next_hop) {
+            Some(s) => s,
+            None => panic!("Sender for {next_hop} not found"),
+        };
+
+        match &packet.pack_type {
+            PacketType::MsgFragment(_fragment) => {
+                if !self.packet_send.contains_key(next_hop) {
+                    let nack =
+                        Self::create_nack_packet(&packet, NackType::ErrorInRouting(*next_hop));
+                    self.forward_packet(nack);
+                    return;
+                }
+
+                // TODO: fix rand::rng();
+                let mut rng = rand::rng();
+                let random_number: f32 = rng.random_range(0.0..=1.0);
+
+                if random_number < self.pdr {
+                    let nack = Self::create_nack_packet(&packet, NackType::Dropped);
+                    self.forward_packet(nack);
+                } else {
+                    self.send_packet_and_notify_simulation_controller(channel, packet);
+                }
+            }
+            PacketType::Nack(_) | PacketType::Ack(_) | PacketType::FloodResponse(_) => {
+                if !self.packet_send.contains_key(next_hop) {
+                    let event = DroneEvent::ControllerShortcut(packet);
+                    self.send_event_to_simulation_controller(&event);
+                    return;
+                }
+                self.send_packet_and_notify_simulation_controller(channel, packet);
+            }
+            PacketType::FloodRequest(_flood_request) => {
+                panic!("not expecting a packet of type flood request")
+            }
+        }
+    }
+
+    /// forwards the given fragment packet if next hop is a neighbor, randomly dropping the packet according to the PDR.
+
+    fn process_flood_request(&self, packet: Packet) {
+        let flood_request = match packet.pack_type {
+            PacketType::FloodRequest(f) => f,
+            _ => panic!("expecting a packet of type flood request"),
+        };
+
+        let received_from = match flood_request.path_trace.last() {
+            Some((node_id, _node_type)) => node_id,
+            None => panic!("flood request has no path trace"), // TODO: decide if it is appropriate to panic
+        };
+        let flood_id = flood_request.flood_id;
+        let mut new_path_trace = flood_request.path_trace.clone();
+        new_path_trace.push((self.id, NodeType::Drone));
+
+        let drone_has_no_other_neighbors = self
+            .packet_send
+            .iter()
+            .filter(|(node_id, _channel)| **node_id != *received_from)
+            .count()
+            == 0;
+
+        if self.known_flood_ids.borrow().contains(&flood_id) || drone_has_no_other_neighbors {
+            let flood_response = PacketType::FloodResponse(FloodResponse {
+                flood_id,
+                path_trace: new_path_trace.clone(),
+            });
+            // there is no hops vec to reverse in sourcerouting header because
+            // floodrequest ignores it, path trace is used instead
+            let hops: Vec<NodeId> = new_path_trace
+                .iter()
+                .map(|(id, _)| id)
+                .rev()
+                .copied()
+                .collect();
+            let flood_response_packet = Packet {
+                pack_type: flood_response,
+                routing_header: SourceRoutingHeader { hop_index: 1, hops },
+                session_id: packet.session_id,
+            };
+            let channel = match self.packet_send.get(received_from) {
+                Some(s) => s,
+                None => panic!("Sender for {received_from} not found"),
+            };
+            self.send_packet_and_notify_simulation_controller(channel, flood_response_packet);
+        } else {
+            self.known_flood_ids.borrow_mut().insert(flood_id);
+
+            let flood_request = FloodRequest {
+                flood_id,
+                initiator_id: flood_request.initiator_id,
+                path_trace: new_path_trace,
+            };
+            let packet_type = PacketType::FloodRequest(flood_request);
+            let previous_routing_header = packet.routing_header.clone();
+
+            let next_hops_to_forward_packet_to: Vec<NodeId> = self
+                .packet_send
+                .iter()
+                .filter(|(node_id, _channel)| **node_id != *received_from)
+                .map(|(node_id, _channel)| node_id)
+                .copied()
+                .collect();
+
+            for next_hop in &next_hops_to_forward_packet_to {
+                let routing_header = previous_routing_header.clone();
+                let packet = Packet {
+                    pack_type: packet_type.clone(),
+                    routing_header,
+                    session_id: packet.session_id,
+                };
+                let channel = match self.packet_send.get(next_hop) {
+                    Some(s) => s,
+                    None => panic!("Sender for {next_hop} not found"),
+                };
+
+                self.send_packet_and_notify_simulation_controller(channel, packet);
+            }
+        }
+    }
+
+    /// panics if `channel.send()` fails
+    fn send_packet_and_notify_simulation_controller(
+        &self,
+        channel: &Sender<Packet>,
+        packet: Packet,
+    ) {
+        match channel.send(packet.clone()) {
+            Ok(()) => {
+                log::info!(
+                    "Packet {:?} successfully sent into channel {channel:?}",
+                    &packet
+                );
+                let drone_event = DroneEvent::PacketSent(packet);
+                self.send_event_to_simulation_controller(&drone_event);
+            }
+            Err(error) => {
+                panic!(
+                    "Cannot send packet {:?} into channel {channel:?}. Error: {error:?}",
+                    &packet
+                );
+            }
+        }
+    }
+
+    /// panics if `self.controller_send.send()` fails
+    fn send_event_to_simulation_controller(&self, event: &DroneEvent) {
+        match self.controller_send.send(event.clone()) {
+            Ok(()) => {
+                log::info!(
+                    "Event {:?} successfully sent to simulation controller",
+                    &event
+                );
+            }
+            Err(error) => {
+                panic!(
+                    "Cannot send event {:?} to simulation controller. Error: {error:?}",
+                    &event
+                );
+            }
+        }
+    }
+
+    /// Sets `self.pdr` to the given `pdr` value.
+    /// Panics if `pdr` is not in the valid range
+    fn set_pdr(&mut self, pdr: f32) {
+        assert!(
+            (0f32..=1f32).contains(&pdr),
+            "Tried to set an invalid pdr value of {pdr}, which is not in range (0.0..=1.0)"
+        );
+        self.pdr = pdr;
+        log::info!("pdr updated to {pdr}");
+    }
+
+    fn add_channel(&mut self, id: NodeId, sender: Sender<Packet>) {
+        match self.packet_send.insert(id, sender) {
+            Some(_previous_sender) => {
+                log::info!("Sender to node {id} updated");
+            }
+            None => {
+                log::info!("Sender to node {id} inserted");
+            }
+        }
+    }
     fn create_nack_packet(original_packet: &Packet, nack_type: NackType) -> Packet {
         let fragment_index = match &original_packet.pack_type {
             PacketType::MsgFragment(frag) => frag.fragment_index,
@@ -163,252 +365,6 @@ impl MyDrone {
                 hops: reverse_path,
             },
             session_id: original_packet.session_id,
-        }
-    }
-
-    /// panics if `packet.routing_header.hop_index` is not a key of `self.packet_send`
-    fn send_packet_to_neighbor(&self, packet: Packet) {
-        let next_hop = packet.routing_header.hops.get(packet.routing_header.hop_index).unwrap();
-        let channel = self.packet_send.get(next_hop).unwrap();
-
-        match &packet.pack_type {
-            PacketType::MsgFragment(_fragment) => {
-                if !self.packet_send.contains_key(next_hop) {
-                    let nack = Self::create_nack_packet(&packet, NackType::ErrorInRouting(*next_hop));
-                    self.send_packet_to_neighbor(nack);
-                    return;
-                }
-
-                // TODO: fix rand::rng();
-                let mut rng = rand::rng();
-                let random_number: f32 = rng.random_range(0.0..=1.0);
-
-                if random_number < self.pdr {
-                    let nack = Self::create_nack_packet(&packet, NackType::Dropped);
-                    self.send_packet_to_neighbor(nack);
-                } else {
-                    self.send_packet_and_notify_simulation_controller(channel, packet);
-                }
-            }
-            PacketType::Nack(_) | PacketType::Ack(_) | PacketType::FloodResponse(_) => {
-                if !self.packet_send.contains_key(next_hop) {
-                    let event = DroneEvent::ControllerShortcut(packet);
-                    self.send_event_to_simulation_controller(&event);
-                    return;
-                }
-                self.send_packet_and_notify_simulation_controller(channel, packet);
-            }
-            PacketType::FloodRequest(flood_request) => {
-                if !self.packet_send.contains_key(next_hop) {
-                    // flood request does not send NACKs as the current protocol does not specify it
-                    return;
-                }
-                // TODO: handle flood request logic
-
-                let received_from = match flood_request.path_trace.last() {
-                    Some((node_id, _node_type)) => node_id,
-                    None => panic!("flood request has no path trace"), // TODO: decide if it is appropriate to panic
-                };
-                let flood_id = flood_request.flood_id;
-                let mut new_path_trace = flood_request.path_trace.clone();
-                new_path_trace.push((self.id, NodeType::Drone));
-
-                let drone_has_no_other_neighbors = self
-                    .packet_send
-                    .iter()
-                    .filter(|(node_id, _channel)| **node_id != *received_from)
-                    .count() == 0;
-
-                if self.known_flood_ids.borrow().contains(&flood_id) || drone_has_no_other_neighbors {
-                    let flood_response = PacketType::FloodResponse (
-                        FloodResponse {
-                            flood_id,
-                            path_trace: new_path_trace,
-                        }
-                    );
-                    let new_hops: Vec<NodeId> = packet.routing_header.hops.iter().rev().copied().collect();
-                    let flood_response_packet = Packet {
-                        pack_type: flood_response,
-                        routing_header: SourceRoutingHeader {
-                            hop_index: 1,
-                            hops: new_hops,
-                        },
-                        session_id: packet.session_id,
-                    };
-                    self.send_packet_to_neighbor(flood_response_packet);
-                } else {
-                    // TODO: check this else branch again
-                    self.known_flood_ids.borrow_mut().insert(flood_id);
-
-                    let flood_request = FloodRequest {
-                        flood_id,
-                        initiator_id: flood_request.initiator_id,
-                        path_trace: new_path_trace,
-                    };
-                    let packet_type = PacketType::FloodRequest(flood_request);
-                    let previous_routing_header = packet.routing_header.clone();
-
-                    let next_hops_to_forward_packet_to: Vec<NodeId> = self
-                        .packet_send
-                        .iter()
-                        .filter(|(node_id, _channel)| **node_id != *received_from)
-                        .map(|(node_id, _channel)| node_id)
-                        .copied()
-                        .collect();
-
-                    for next_hop in &next_hops_to_forward_packet_to {
-                        let mut routing_header = previous_routing_header.clone();
-                        routing_header.hops.push(*next_hop);
-                        let packet = Packet {
-                            pack_type: packet_type.clone(),
-                            routing_header,
-                            session_id: packet.session_id,
-                        };
-                        self.send_packet_to_neighbor(packet);
-                    }
-                }
-            }
-        }
-    }
-
-    /// panics if `channel.send()` fails
-    fn send_packet_and_notify_simulation_controller(&self, channel: &Sender<Packet>, packet: Packet) {
-        match channel.send(packet.clone()) {
-            Ok(()) => {
-                log::info!("Packet {:?} successfully sent into channel {channel:?}", &packet);
-                let drone_event = DroneEvent::PacketSent(packet);
-                self.send_event_to_simulation_controller(&drone_event);
-            }
-            Err(error) => {
-                panic!("Cannot send packet {:?} into channel {channel:?}. Error: {error:?}", &packet);
-            }
-        }
-    }
-
-    /// panics if `self.controller_send.send()` fails
-    fn send_event_to_simulation_controller(&self, event: &DroneEvent) {
-        match self.controller_send.send(event.clone()) {
-            Ok(()) => {
-                log::info!("Event {:?} successfully sent to simulation controller", &event);
-            }
-            Err(error) => {
-                panic!("Cannot send event {:?} to simulation controller. Error: {error:?}", &event);
-            }
-        }
-    }
-
-    /// Sets `self.pdr` to the given `pdr` value.
-    /// Panics if `pdr` is not in the valid range
-    fn set_pdr(&mut self, pdr: f32) {
-        assert!((0f32..=1f32).contains(&pdr), "Tried to set an invalid pdr value of {pdr}, which is not in range (0.0..=1.0)");
-        self.pdr = pdr;
-        log::info!("pdr updated to {pdr}");
-    }
-
-    fn add_channel(&mut self, id: NodeId, sender: Sender<Packet>) {
-        match self.packet_send.insert(id, sender) {
-            Some(_previous_sender) => {
-                log::info!("Sender to node {id} updated");
-            },
-            None => {
-                log::info!("Sender to node {id} inserted");
-            },
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    mod common {
-        use std::thread::{spawn, JoinHandle};
-        use crossbeam_channel::{Receiver, Sender};
-        use wg_2024::controller::{DroneCommand, DroneEvent};
-        use wg_2024::drone::Drone;
-        use wg_2024::packet::{Fragment, Packet};
-        use crate::MyDrone;
-
-        pub fn default_drone() -> (
-            Sender<DroneEvent>,
-            Receiver<DroneCommand>,
-            Receiver<Packet>,
-            Sender<Packet>,
-        ) {
-            let (s1, r1) = crossbeam_channel::unbounded::<DroneEvent>();
-            let (s2, r2) = crossbeam_channel::unbounded::<DroneCommand>();
-            let (s3, r3) = crossbeam_channel::unbounded::<Packet>();
-            (s1, r2, r3, s3)
-        }
-
-        pub fn default_fragment(idx: u64, n_frags: u64) -> Fragment {
-            Fragment {
-                fragment_index: idx,
-                total_n_fragments: n_frags,
-                length: 80,
-                data: [0; 128],
-            }
-        }
-
-        pub fn start_drone_thread(mut d: MyDrone) -> JoinHandle<()> {
-            spawn(move || {
-                d.run();
-            })
-        }
-
-    }
-
-    mod initialization {
-        use super::*;
-        use std::collections::HashMap;
-        use wg_2024::drone::Drone;
-        use wg_2024::packet::Packet;
-        use crate::tests::common::default_drone;
-
-        #[test]
-        #[should_panic(expected = "pdr out of bounds")]
-        fn pdr_too_big() {
-            let (controller_send, controller_recv, packet_recv, packet_send) = default_drone();
-            let _my_drone = MyDrone::new(
-                0,
-                controller_send,
-                controller_recv,
-                packet_recv,
-                HashMap::new(),
-                3.14
-            );
-        }
-
-        #[test]
-        #[should_panic(expected = "pdr out of bounds")]
-        fn pdr_negative() {
-            let (controller_send, controller_recv, packet_recv, packet_send) = default_drone();
-            let _my_drone = MyDrone::new(
-                0,
-                controller_send,
-                controller_recv,
-                packet_recv,
-                HashMap::new(),
-                -0.1
-            );
-        }
-
-        #[test]
-        #[should_panic(expected = "neighbor with id 1 which is the same as drone")]
-        fn neighbor_is_self() {
-            let (controller_send, controller_recv, packet_recv, packet_send) = default_drone();
-
-            let (sender, _) = crossbeam_channel::unbounded::<Packet>();
-            let mut senders = HashMap::new();
-            senders.insert(1, sender);
-            let _my_drone = MyDrone::new(
-                1,
-                controller_send,
-                controller_recv,
-                packet_recv,
-                senders,
-                0.3
-            );
         }
     }
 }
