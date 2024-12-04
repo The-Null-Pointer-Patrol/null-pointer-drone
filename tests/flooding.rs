@@ -34,8 +34,8 @@ fn flood_request_propagation() {
             path_trace: vec![(100, NodeType::Client)],
         }),
         routing_header: SourceRoutingHeader {
-            hop_index: 1,
-            hops: vec![0, 1, 2, 3, 4],
+            hop_index: 0,
+            hops: vec![],
         },
         session_id: 100,
     };
@@ -45,7 +45,7 @@ fn flood_request_propagation() {
     };
 
     // change packet to expected
-    packet.routing_header.hop_index = 1;
+    packet.routing_header.hop_index = 0;
     packet.pack_type = PacketType::FloodRequest(FloodRequest {
         flood_id: 1,
         initiator_id: 100,
@@ -92,8 +92,8 @@ fn flood_request_no_neighbors() {
             path_trace: vec![(100, NodeType::Drone)],
         }),
         routing_header: SourceRoutingHeader {
-            hop_index: 1,
-            hops: vec![0, 1, 2, 3, 4, 34, 212, 181],
+            hop_index: 0,
+            hops: vec![],
         },
         session_id: 100,
     };
@@ -109,8 +109,8 @@ fn flood_request_no_neighbors() {
         }),
 
         routing_header: SourceRoutingHeader {
-            hop_index: 1,
-            hops: vec![1, 100],
+            hop_index: 0,
+            hops: vec![],
         },
         session_id: 100,
     };
