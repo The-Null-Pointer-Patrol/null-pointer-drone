@@ -1,6 +1,6 @@
 use std::{collections::HashMap, time::Duration};
 
-use common::{create_channels, default_fragment, start_drone_thread};
+use common::{create_channels, default_fragment, start_drone_thread, RECV_WAIT_TIME};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use log::warn;
 use null_pointer_drone::MyDrone;
@@ -169,7 +169,7 @@ fn send_and_check_forward(
         panic!("error sending packet to drone")
     };
 
-    match r.recv() {
+    match r.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
         Err(e) => {
             panic!("error receiving packet: {}", e);
         }
@@ -180,7 +180,7 @@ fn send_and_check_forward(
         }
     };
 
-    match er.recv() {
+    match er.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
         Ok(e2) => {
             let expected = DroneEvent::PacketSent(p);
             assert_eq!(e2, expected);
