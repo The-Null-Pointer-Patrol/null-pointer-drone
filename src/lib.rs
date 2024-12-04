@@ -312,13 +312,13 @@ impl MyDrone {
         match self.controller_send.send(event.clone()) {
             Ok(()) => {
                 log::info!(
-                    "Event {} successfully sent to simulation controller",
+                    "Event {:?} successfully sent to simulation controller",
                     &event
                 );
             }
             Err(error) => {
                 panic!(
-                    "Cannot send event {} to simulation controller. Error: {error:?}",
+                    "Cannot send event {:?} to simulation controller. Error: {error:?}",
                     &event
                 );
             }
