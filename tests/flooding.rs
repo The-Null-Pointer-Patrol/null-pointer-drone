@@ -110,7 +110,7 @@ fn flood_request_no_neighbors() {
         }),
 
         routing_header: SourceRoutingHeader {
-            hop_index: 1, // TODO: is this supposed to be 1 and not 0, right?
+            hop_index: 1,
             hops: vec![1, 100],
         },
         session_id: 100,
