@@ -272,6 +272,8 @@ impl MyDrone {
                 // - send_packet uses it to know where to send the packet
                 // - when logging we always show the Packet sourceroutingHeader, and this gives use
                 // more information
+                // TODO: behavior not defined in protocol so it's worth to document it in the
+                // readme if we keep it
                 let routing_header = SourceRoutingHeader {
                     hop_index: 1,
                     hops: vec![self.id, *next_hop],
@@ -290,12 +292,6 @@ impl MyDrone {
 
 // packet sending section
 impl MyDrone {
-    ///// if `channel.send()` fails it panics
-    //fn send_packet_and_notify_simulation_controller(&self, dest: NodeId, packet: Packet) {
-    //    self.send_packet(dest, packet.clone());
-    //    // todo: what to do when send packet uses shortcut
-    //}
-
     /// takes a packet whose routing header hop index already points to the intended destination
     /// sends that packet through the `channel` corresponding to the current hop index, panics if there is a SendError
     fn send_packet(&self, packet: Packet, notify_simcontr: bool) {
