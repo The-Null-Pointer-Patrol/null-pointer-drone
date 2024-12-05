@@ -116,22 +116,32 @@ impl MyDrone {
             _ => {
                 let current_index = packet.routing_header.hop_index;
                 if current_index >= packet.routing_header.hops.len() {
-                    let nack =
-                        Self::create_nack_packet(&packet, NackType::UnexpectedRecipient(self.id));
+                    let nack = Self::create_nack_packet(
+                        &packet,
+                        current_index,
+                        NackType::UnexpectedRecipient(self.id),
+                    );
                     self.forward_packet(nack);
                     return;
                 }
 
                 if current_index == packet.routing_header.hops.len() - 1 {
-                    let nack = Self::create_nack_packet(&packet, NackType::DestinationIsDrone);
+                    let nack = Self::create_nack_packet(
+                        &packet,
+                        current_index,
+                        NackType::DestinationIsDrone,
+                    );
                     self.forward_packet(nack);
                     return;
                 }
 
                 let current_hop = packet.routing_header.hops.get(current_index).unwrap();
                 if *current_hop != self.id {
-                    let nack =
-                        Self::create_nack_packet(&packet, NackType::UnexpectedRecipient(self.id));
+                    let nack = Self::create_nack_packet(
+                        &packet,
+                        current_index,
+                        NackType::UnexpectedRecipient(self.id),
+                    );
                     self.forward_packet(nack);
                     return;
                 }
@@ -145,12 +155,9 @@ impl MyDrone {
     /// panics if `packet.routing_header.hop_index` is not a key of `self.packet_send`
     /// panics if passed a floodrequest packet
     fn forward_packet(&self, packet: Packet) {
+        let hop_index = packet.routing_header.hop_index;
         // todo: have some descriptive panic instead of unwrap
-        let next_hop = packet
-            .routing_header
-            .hops
-            .get(packet.routing_header.hop_index)
-            .unwrap();
+        let next_hop = packet.routing_header.hops.get(hop_index).unwrap();
 
         let channel = match self.packet_send.get(next_hop) {
             Some(s) => s,
@@ -162,8 +169,11 @@ impl MyDrone {
         match &packet.pack_type {
             PacketType::MsgFragment(_fragment) => {
                 if !self.packet_send.contains_key(next_hop) {
-                    let nack =
-                        Self::create_nack_packet(&packet, NackType::ErrorInRouting(*next_hop));
+                    let nack = Self::create_nack_packet(
+                        &packet,
+                        hop_index - 1,
+                        NackType::ErrorInRouting(*next_hop),
+                    );
                     self.forward_packet(nack);
                     return;
                 }
@@ -173,7 +183,7 @@ impl MyDrone {
                 let random_number: f32 = rng.random_range(0.0..=1.0);
 
                 if random_number < self.pdr {
-                    let nack = Self::create_nack_packet(&packet, NackType::Dropped);
+                    let nack = Self::create_nack_packet(&packet, hop_index - 1, NackType::Dropped);
                     self.forward_packet(nack);
                 } else {
                     self.send_packet_and_notify_simulation_controller(channel, packet);
@@ -292,8 +302,12 @@ impl MyDrone {
         match channel.send(packet.clone()) {
             Ok(()) => {
                 log::info!(
-                    "Packet {} successfully sent into channel {channel:?}",
-                    &packet
+                    "Sent to drone {} Packet {}",
+                    packet
+                        .routing_header
+                        .next_hop()
+                        .expect("can't find next hop"),
+                    &packet,
                 );
                 let drone_event = DroneEvent::PacketSent(packet);
                 self.send_event_to_simulation_controller(&drone_event);
@@ -311,9 +325,15 @@ impl MyDrone {
     fn send_event_to_simulation_controller(&self, event: &DroneEvent) {
         match self.controller_send.send(event.clone()) {
             Ok(()) => {
-                log::info!(
-                    "Event {:?} successfully sent to simulation controller",
-                    &event
+                let (event_type, packet) = match event {
+                    DroneEvent::PacketSent(packet) => ("PacketSent", packet),
+                    DroneEvent::PacketDropped(packet) => ("PacketDropped", packet),
+                    DroneEvent::ControllerShortcut(packet) => ("ControllerShortcut", packet),
+                };
+                log::debug!(
+                    "Sent DroneEvent::{} to simulation controller, about packet{}",
+                    event_type,
+                    packet,
                 );
             }
             Err(error) => {
@@ -346,35 +366,37 @@ impl MyDrone {
             }
         }
     }
-    fn create_nack_packet(original_packet: &Packet, nack_type: NackType) -> Packet {
+
+    /// creates a nack with the given NackType, containing the `original_packet` and reversing the
+    /// route so that it goes from `original_recipient_idx` to the node that sent `original_packet`
+    /// (the one at index 0)
+    fn create_nack_packet(
+        original_packet: &Packet,
+        original_recipient_idx: usize,
+        nack_type: NackType,
+    ) -> Packet {
         let fragment_index = match &original_packet.pack_type {
             PacketType::MsgFragment(frag) => frag.fragment_index,
             // if the packet is not a fragment it is considered as a whole so frag index is 0
             _ => 0,
         };
-        let inner_nack = Nack {
+
+        let nack = Nack {
             fragment_index,
             nack_type,
         };
 
-        let hop_index = original_packet.routing_header.hop_index;
-        // TODO: check correctness
-        let reverse_path = original_packet
+        // cut route from source to original recipient, then reverse
+        let mut new_header = original_packet
             .routing_header
-            .hops
-            .split_at(hop_index + 1)
-            .0
-            .iter()
-            .rev()
-            .copied()
-            .collect::<Vec<NodeId>>();
+            .sub_route(0..=original_recipient_idx as usize)
+            .unwrap();
+        new_header.reverse();
+        new_header.hop_index = 1;
 
         Packet {
-            pack_type: PacketType::Nack(inner_nack),
-            routing_header: SourceRoutingHeader {
-                hop_index: 1,
-                hops: reverse_path,
-            },
+            pack_type: PacketType::Nack(nack),
+            routing_header: new_header,
             session_id: original_packet.session_id,
         }
     }
