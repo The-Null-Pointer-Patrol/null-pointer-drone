@@ -401,6 +401,13 @@ impl MyDrone {
         match nack_type {
             NackType::Dropped => {
                 self.send_packet(packet, false);
+                // TODO: another small detail not too clear in the protocol: here we send the
+                // original_packet which had already his hop_index increased so its pointing to
+                // where we would have sent him if everything went ok, other option is having
+                // hop_index-1 as it was when packet arrived.
+                // The fact that we choose one of the two IMO should be documented in the
+                // readme, because it could be unexpected when viewing the list of dropped packets in
+                // the simulation controller
                 self.send_event(&DroneEvent::PacketDropped(original_packet.clone()));
             }
             _ => self.send_packet(packet, true),
