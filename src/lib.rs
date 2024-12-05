@@ -383,29 +383,26 @@ impl MyDrone {
             nack_type,
         };
 
-        // subroute from source to original recipient, then reverse
-        let mut new_header = original_packet
-            .routing_header
-            .sub_route(0..=original_recipient_idx)
-            .unwrap();
-        new_header.reverse();
-        new_header.hop_index = 1;
+        let mut new_hops = original_packet.routing_header.hops[0..=original_recipient_idx].to_vec();
+        new_hops.reverse();
 
+        let new_header = SourceRoutingHeader {
+            hop_index: 1,
+            hops: new_hops,
+        };
         let packet = Packet {
             pack_type: PacketType::Nack(nack),
             routing_header: new_header,
             session_id: original_packet.session_id,
         };
 
-        let dest: NodeId = original_packet.routing_header.hops[0];
+        //let dest: NodeId = original_packet.routing_header.hops[0];
         match nack_type {
-            NackType::ErrorInRouting(_) => todo!(),
-            NackType::DestinationIsDrone => todo!(),
             NackType::Dropped => {
                 self.send_packet(packet, false);
                 self.send_event(&DroneEvent::PacketDropped(original_packet.clone()));
             }
-            NackType::UnexpectedRecipient(_) => todo!(),
+            _ => self.send_packet(packet, true),
         }
     }
 }
