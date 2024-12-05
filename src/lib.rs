@@ -302,8 +302,12 @@ impl MyDrone {
         match channel.send(packet.clone()) {
             Ok(()) => {
                 log::info!(
-                    "Packet {} successfully sent into channel {channel:?}",
-                    &packet
+                    "Sent to drone {} Packet {}",
+                    packet
+                        .routing_header
+                        .next_hop()
+                        .expect("can't find next hop"),
+                    &packet,
                 );
                 let drone_event = DroneEvent::PacketSent(packet);
                 self.send_event_to_simulation_controller(&drone_event);
@@ -321,9 +325,15 @@ impl MyDrone {
     fn send_event_to_simulation_controller(&self, event: &DroneEvent) {
         match self.controller_send.send(event.clone()) {
             Ok(()) => {
+                let (event_type, packet) = match event {
+                    DroneEvent::PacketSent(packet) => ("PacketSent", packet),
+                    DroneEvent::PacketDropped(packet) => ("PacketDropped", packet),
+                    DroneEvent::ControllerShortcut(packet) => ("ControllerShortcut", packet),
+                };
                 log::debug!(
-                    "Event {:?} successfully sent to simulation controller",
-                    &event
+                    "Sent DroneEvent::{} to simulation controller, about packet{}",
+                    event_type,
+                    packet,
                 );
             }
             Err(error) => {
