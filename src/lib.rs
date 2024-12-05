@@ -372,6 +372,8 @@ impl MyDrone {
         original_recipient_idx: usize,
         nack_type: NackType,
     ) {
+        // TODO: add checks for original_recipient_idx or alternatively do it like with packet_send
+        // and use hop_index to find out the original_recipient
         let fragment_index = match &original_packet.pack_type {
             PacketType::MsgFragment(frag) => frag.fragment_index,
             // if the packet is not a fragment it is considered as a whole so frag index is 0
@@ -396,7 +398,6 @@ impl MyDrone {
             session_id: original_packet.session_id,
         };
 
-        //let dest: NodeId = original_packet.routing_header.hops[0];
         match nack_type {
             NackType::Dropped => {
                 self.send_packet(packet, false);

@@ -12,7 +12,7 @@ use wg_2024::{
 };
 mod common;
 
-/// tests sending this packet:
+/// sends this packet:
 /// 0 -> (1) -> 2
 /// but drone 1 has pdr of 1.0 so it gets dropped, and we expect:
 /// - a nack of this form: 1->(0)
@@ -32,8 +32,8 @@ fn expect_drop() {
     let my_drone = MyDrone::new(1, event_send, controller_recv, packet_recv, senders, 1.0);
     let _handle = start_drone_thread(my_drone);
 
-    let packet = Packet {
-        pack_type: PacketType::MsgFragment(default_fragment(0, 10)),
+    let mut packet = Packet {
+        pack_type: PacketType::MsgFragment(default_fragment(4, 10)),
         routing_header: SourceRoutingHeader {
             hop_index: 1,
             hops: vec![0, 1, 2, 3, 4],
@@ -47,14 +47,13 @@ fn expect_drop() {
     };
 
     let expected = Packet {
-        pack_type: PacketType::FloodResponse(FloodResponse {
-            flood_id: 1,
-            path_trace: vec![(100, NodeType::Drone), (1, NodeType::Drone)],
+        pack_type: PacketType::Nack(Nack {
+            fragment_index: 4,
+            nack_type: NackType::Dropped,
         }),
-
         routing_header: SourceRoutingHeader {
             hop_index: 1,
-            hops: vec![1, 100],
+            hops: vec![1, 0],
         },
         session_id: 100,
     };
@@ -68,14 +67,15 @@ fn expect_drop() {
         }
     };
     match r2.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
-        Err(e) => {}
+        Err(_) => {}
         Ok(p2) => {
             panic!("no packet should arrive to drone 2, got packet {}", p2);
         }
     };
     match event_recv.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
         Ok(e2) => {
-            let expected = DroneEvent::PacketSent(expected.clone());
+            packet.routing_header.increase_hop_index();
+            let expected = DroneEvent::PacketDropped(packet.clone());
             assert_eq!(e2, expected);
         }
         Err(e) => {
