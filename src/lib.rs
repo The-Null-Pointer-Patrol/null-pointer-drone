@@ -146,6 +146,10 @@ impl MyDrone {
     fn process_not_flood_request(&self, mut packet: Packet) {
         let current_index = packet.routing_header.hop_index;
 
+        if packet.routing_header.is_empty() {
+            panic!("empty routing header for packet {packet}")
+        }
+
         // index is out of bounds
         // TODO: decide if this should be a panic, when decided document it in readme because it's
         // not a behavior well defined by the protocol
