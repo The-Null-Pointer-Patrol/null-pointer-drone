@@ -180,17 +180,7 @@ impl MyDrone {
         let hop_index = packet.routing_header.hop_index;
 
         match &packet.pack_type {
-            PacketType::MsgFragment(_fragment) => {
-                // TODO: fix rand::rng();
-                let mut rng = rand::rng();
-                let random_number: f32 = rng.random_range(0.0..=1.0);
-
-                if random_number < self.pdr {
-                    self.make_and_send_nack(&packet, hop_index - 1, NackType::Dropped);
-                } else {
-                    self.send_packet(packet);
-                }
-            }
+            PacketType::MsgFragment(_fragment) => {}
             // packets for which we send shortcut
             PacketType::Nack(_) | PacketType::Ack(_) | PacketType::FloodResponse(_) => {
                 self.send_packet(packet);
@@ -301,6 +291,17 @@ impl MyDrone {
             .expect("next hop not found");
 
         if let Some(channel) = self.packet_send.get(&dest) {
+            // packet drop logic
+            if matches!(packet.pack_type, PacketType::MsgFragment(_fragment)) {
+                // TODO: fix rand::rng();
+                let mut rng = rand::rng();
+                let random_number: f32 = rng.random_range(0.0..=1.0);
+
+                if random_number < self.pdr {
+                    self.make_and_send_nack(&packet, hop_index - 1, NackType::Dropped);
+                    return;
+                }
+            }
             match channel.send(packet.clone()) {
                 Ok(()) => {
                     let drone_event = DroneEvent::PacketSent(packet.clone());
