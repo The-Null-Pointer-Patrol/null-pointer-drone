@@ -72,6 +72,8 @@ fn expect_drop() {
             panic!("no packet should arrive to drone 2, got packet {}", p2);
         }
     };
+    // TODO: check also that we receive the event PacketSent(Nack(NackType::Dropped)), at the
+    // moment the drone sends PacketDropped event first so this test still passes
     match event_recv.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
         Ok(e2) => {
             packet.routing_header.increase_hop_index();

@@ -192,12 +192,12 @@ impl MyDrone {
                 if random_number < self.pdr {
                     self.make_and_send_nack(&packet, hop_index - 1, NackType::Dropped);
                 } else {
-                    self.send_packet(packet, true);
+                    self.send_packet(packet);
                 }
             }
             // packets for which we send shortcut
             PacketType::Nack(_) | PacketType::Ack(_) | PacketType::FloodResponse(_) => {
-                self.send_packet(packet, true);
+                self.send_packet(packet);
             }
             PacketType::FloodRequest(_flood_request) => {
                 panic!("not expecting a packet of type flood request")
@@ -247,7 +247,7 @@ impl MyDrone {
                 routing_header: SourceRoutingHeader { hop_index: 1, hops },
                 session_id: packet.session_id,
             };
-            self.send_packet(flood_response_packet, true);
+            self.send_packet(flood_response_packet);
         } else {
             self.known_flood_ids.borrow_mut().insert(flood_id);
 
@@ -284,7 +284,7 @@ impl MyDrone {
                     session_id: packet.session_id,
                 };
 
-                self.send_packet(packet, true);
+                self.send_packet(packet);
             }
         }
     }
@@ -294,7 +294,7 @@ impl MyDrone {
 impl MyDrone {
     /// takes a packet whose routing header hop index already points to the intended destination
     /// sends that packet through the `channel` corresponding to the current hop index, panics if there is a SendError
-    fn send_packet(&self, packet: Packet, notify_simcontr: bool) {
+    fn send_packet(&self, packet: Packet) {
         // TODO: we could use some checks at least that hop_idx and hop_idx+1 are contained in the
         // hops
 
@@ -307,10 +307,8 @@ impl MyDrone {
         if let Some(channel) = self.packet_send.get(&dest) {
             match channel.send(packet.clone()) {
                 Ok(()) => {
-                    if notify_simcontr {
-                        let drone_event = DroneEvent::PacketSent(packet.clone());
-                        self.send_event(&drone_event);
-                    }
+                    let drone_event = DroneEvent::PacketSent(packet.clone());
+                    self.send_event(&drone_event);
                     log::info!("Sent to channel of Drone#{} Packet {}", dest, &packet,);
                 }
                 Err(error) => {
@@ -394,19 +392,17 @@ impl MyDrone {
             session_id: original_packet.session_id,
         };
 
-        match nack_type {
-            NackType::Dropped => {
-                self.send_packet(packet, false);
-                // TODO: another small detail not too clear in the protocol: here we send the
-                // original_packet which had already his hop_index increased so its pointing to
-                // where we would have sent him if everything went ok, other option is having
-                // hop_index-1 as it was when packet arrived.
-                // The fact that we choose one of the two IMO should be documented in the
-                // readme, because it could be unexpected when viewing the list of dropped packets in
-                // the simulation controller
-                self.send_event(&DroneEvent::PacketDropped(original_packet.clone()));
-            }
-            _ => self.send_packet(packet, true),
+        if matches!(nack_type, NackType::Dropped) {
+            self.send_event(&DroneEvent::PacketDropped(original_packet.clone()));
+
+            // TODO: another small detail not too clear in the protocol: here we send the
+            // original_packet which had already his hop_index increased so its pointing to
+            // where we would have sent him if everything went ok, other option is having
+            // hop_index-1 as it was when packet arrived.
+            // The fact that we choose one of the two IMO should be documented in the
+            // readme, because it could be unexpected when viewing the list of dropped packets in
+            // the simulation controller
         }
+        self.send_packet(packet);
     }
 }
