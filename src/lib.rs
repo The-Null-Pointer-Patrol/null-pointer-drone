@@ -316,12 +316,12 @@ impl MyDrone {
         } else {
             match packet.pack_type.clone() {
                 PacketType::MsgFragment(_) | PacketType::FloodRequest(_) => {
-                    let event = DroneEvent::ControllerShortcut(packet);
-                    self.send_event(&event);
-                }
-                _ => {
                     let idx = packet.routing_header.previous_hop().unwrap();
                     self.make_and_send_nack(&packet, idx as usize, NackType::ErrorInRouting(dest));
+                }
+                _ => {
+                    let event = DroneEvent::ControllerShortcut(packet);
+                    self.send_event(&event);
                 }
             }
         };
