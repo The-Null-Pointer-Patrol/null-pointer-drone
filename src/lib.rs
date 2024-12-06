@@ -154,12 +154,10 @@ impl MyDrone {
         // TODO: decide if this should be a panic, when decided document it in readme because it's
         // not a behavior well defined by the protocol
         if current_index >= packet.routing_header.hops.len() {
-            self.make_and_send_nack(
-                &packet,
-                current_index,
-                NackType::UnexpectedRecipient(self.id),
+            panic!(
+                "hop_index out of bounds: index {current_index} for hops {:?}",
+                packet.routing_header.hops
             );
-            return;
         }
 
         if packet.routing_header.is_last_hop() {
