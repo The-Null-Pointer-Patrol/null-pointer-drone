@@ -149,6 +149,10 @@ impl MyDrone {
             panic!("empty routing header for packet {packet}")
         }
 
+        // TODO: is this even needed when we only call it after checking exactly this?
+        if matches!(packet.pack_type, PacketType::FloodRequest(_)) {
+            panic!("not expecting a packet of type flood request")
+        }
         // TODO: decide if this should be a panic, when decided document it in readme because it's
         // not a behavior well defined by the protocol
         if current_index >= packet.routing_header.hops.len() {
@@ -177,18 +181,7 @@ impl MyDrone {
         // packet with the hop_idx alreay pointing to the destination
         packet.routing_header.hop_index += 1;
 
-        let hop_index = packet.routing_header.hop_index;
-
-        match &packet.pack_type {
-            PacketType::MsgFragment(_fragment) => {}
-            // packets for which we send shortcut
-            PacketType::Nack(_) | PacketType::Ack(_) | PacketType::FloodResponse(_) => {
-                self.send_packet(packet);
-            }
-            PacketType::FloodRequest(_flood_request) => {
-                panic!("not expecting a packet of type flood request")
-            }
-        }
+        self.send_packet(packet);
     }
 
     /// forwards the given fragment packet if next hop is a neighbor, randomly dropping the packet according to the PDR.
@@ -284,7 +277,7 @@ impl MyDrone {
         // TODO: we could use some checks at least that hop_idx and hop_idx+1 are contained in the
         // hops
 
-        // use hop_idx to get id of destination
+        // use hop_idx to get id of destination:
         let dest = packet
             .routing_header
             .current_hop()
@@ -292,16 +285,21 @@ impl MyDrone {
 
         if let Some(channel) = self.packet_send.get(&dest) {
             // packet drop logic
-            if matches!(packet.pack_type, PacketType::MsgFragment(_fragment)) {
+            if matches!(packet.pack_type, PacketType::MsgFragment(_)) {
                 // TODO: fix rand::rng();
                 let mut rng = rand::rng();
                 let random_number: f32 = rng.random_range(0.0..=1.0);
 
                 if random_number < self.pdr {
-                    self.make_and_send_nack(&packet, hop_index - 1, NackType::Dropped);
+                    self.make_and_send_nack(
+                        &packet,
+                        packet.routing_header.hop_index - 1,
+                        NackType::Dropped,
+                    );
                     return;
                 }
             }
+
             match channel.send(packet.clone()) {
                 Ok(()) => {
                     let drone_event = DroneEvent::PacketSent(packet.clone());
