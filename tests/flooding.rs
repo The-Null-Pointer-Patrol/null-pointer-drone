@@ -45,28 +45,41 @@ fn flood_request_propagation() {
     };
 
     // change packet to expected
-    packet.routing_header.hop_index = 0;
-    packet.routing_header.hops = vec![];
+    //packet.routing_header.hop_index = 1;
+    //packet.routing_header.hops = vec![];
     packet.pack_type = PacketType::FloodRequest(FloodRequest {
         flood_id: 1,
         initiator_id: 100,
         path_trace: vec![(100, NodeType::Client), (1, NodeType::Drone)],
     });
-
+    let mut x = 2;
     for r in [r2, r3, r4] {
+        // flood request does not care about routing header, but for how it's implemented at the
+        // moment a vec of len 2 is created, see process_flood_request for more info
+        //packet.routing_header.hops = vec![1, x];
+        //x += 1;
+
         match r.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
             Err(e) => {
                 panic!("error receiving packet: {}", e);
             }
             Ok(p2) => {
-                // todo: enable IF PR gets approved
-                assert_eq!(p2, packet);
+                assert_eq!(p2.session_id, packet.session_id);
+                assert_eq!(p2.pack_type, packet.pack_type);
             }
         };
         match event_recv.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
             Ok(e2) => {
                 let expected = DroneEvent::PacketSent(packet.clone());
-                assert_eq!(e2, expected);
+                match e2 {
+                    DroneEvent::PacketSent(p2) => {
+                        assert_eq!(p2.session_id, packet.session_id);
+                        assert_eq!(p2.pack_type, packet.pack_type);
+                    }
+                    _ => {
+                        panic!("Was expecting event of type PacketsSent, got {:?}", e2)
+                    }
+                }
             }
             Err(e) => {
                 panic!("error receiving packet: {}", e);
@@ -86,7 +99,7 @@ fn flood_request_no_neighbors() {
     let my_drone = MyDrone::new(1, event_send, controller_recv, packet_recv, senders, 0.0);
     let _handle = start_drone_thread(my_drone);
 
-    let mut packet = Packet {
+    let packet = Packet {
         pack_type: PacketType::FloodRequest(FloodRequest {
             flood_id: 1,
             initiator_id: 100,
@@ -136,6 +149,4 @@ fn flood_request_no_neighbors() {
     }
 }
 
-// todo: flood_request_id_seen_already
-
-// todo: flood_response_forwarding
+// TODO: flood_request_id_seen_already
