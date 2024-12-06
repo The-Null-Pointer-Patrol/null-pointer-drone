@@ -22,7 +22,7 @@ pub struct MyDrone {
     packet_recv: Receiver<Packet>,
     pdr: f32,
     packet_send: HashMap<NodeId, Sender<Packet>>,
-    known_flood_ids: RefCell<HashSet<u64>>,
+    known_flood_ids: RefCell<HashSet<(u64, NodeId)>>,
     state: State,
     // rng: ThreadRng,
 }
@@ -49,6 +49,7 @@ impl Drone for MyDrone {
             packet_recv,
             pdr,
             packet_send,
+            // TODO: I don't understand why we need to use RefCell here???
             known_flood_ids: RefCell::new(HashSet::new()),
             state: State::Working,
             // rng: rand::rng(),
@@ -149,7 +150,6 @@ impl MyDrone {
             panic!("empty routing header for packet {packet}")
         }
 
-        // TODO: is this even needed when we only call it after checking exactly this?
         if matches!(packet.pack_type, PacketType::FloodRequest(_)) {
             panic!("not expecting a packet of type flood request")
         }
@@ -184,7 +184,6 @@ impl MyDrone {
         self.send_packet(packet);
     }
 
-    /// forwards the given fragment packet if next hop is a neighbor, randomly dropping the packet according to the PDR.
     fn process_flood_request(&self, packet: Packet) {
         let flood_request = match packet.pack_type {
             PacketType::FloodRequest(f) => f,
@@ -195,7 +194,9 @@ impl MyDrone {
             Some((node_id, _node_type)) => node_id,
             None => panic!("flood request has no path trace"), // TODO: decide if it is appropriate to panic
         };
+
         let flood_id = flood_request.flood_id;
+        let initiator_id = flood_request.initiator_id;
         let mut new_path_trace = flood_request.path_trace.clone();
         new_path_trace.push((self.id, NodeType::Drone));
 
@@ -206,7 +207,12 @@ impl MyDrone {
             .count()
             == 0;
 
-        if self.known_flood_ids.borrow().contains(&flood_id) || drone_has_no_other_neighbors {
+        if self
+            .known_flood_ids
+            .borrow()
+            .contains(&(flood_id, initiator_id))
+            || drone_has_no_other_neighbors
+        {
             let flood_response = PacketType::FloodResponse(FloodResponse {
                 flood_id,
                 path_trace: new_path_trace.clone(),
@@ -228,7 +234,9 @@ impl MyDrone {
             };
             self.send_packet(flood_response_packet);
         } else {
-            self.known_flood_ids.borrow_mut().insert(flood_id);
+            self.known_flood_ids
+                .borrow_mut()
+                .insert((flood_id, initiator_id));
 
             let flood_request = FloodRequest {
                 flood_id,
