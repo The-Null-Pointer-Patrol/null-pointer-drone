@@ -138,7 +138,6 @@ impl MyDrone {
             // flood requests do not care about source routing header so there is another logic for
             // them
             PacketType::FloodRequest(_) => self.process_flood_request(packet),
-            // for the other types there are some checks on the hops vector
             _ => self.process_not_flood_request(packet),
         }
     }
@@ -150,7 +149,6 @@ impl MyDrone {
             panic!("empty routing header for packet {packet}")
         }
 
-        // index is out of bounds
         // TODO: decide if this should be a panic, when decided document it in readme because it's
         // not a behavior well defined by the protocol
         if current_index >= packet.routing_header.hops.len() {
@@ -160,11 +158,6 @@ impl MyDrone {
             );
         }
 
-        if packet.routing_header.is_last_hop() {
-            self.make_and_send_nack(&packet, current_index, NackType::DestinationIsDrone);
-            return;
-        }
-
         let current_hop = packet.routing_header.hops.get(current_index).unwrap();
         if *current_hop != self.id {
             self.make_and_send_nack(
@@ -172,6 +165,11 @@ impl MyDrone {
                 current_index,
                 NackType::UnexpectedRecipient(self.id),
             );
+            return;
+        }
+
+        if packet.routing_header.is_last_hop() {
+            self.make_and_send_nack(&packet, current_index, NackType::DestinationIsDrone);
             return;
         }
 
