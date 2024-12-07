@@ -37,10 +37,12 @@ impl Drone for MyDrone {
         pdr: f32,
     ) -> Self {
         // TODO: decide if we need more input validation
+        // As the check below, can't we just use self.add_channel for each packet_send entry to avoid repeating any logic?
         assert!(
             !packet_send.contains_key(&id),
             "neighbor with id {id} which is the same as drone"
         );
+        // Can't we just re-use self.set_pdr to avoid repeating the range checking logic?
         assert!((0.0..=1.0).contains(&pdr), "pdr out of bounds");
         Self {
             id,
@@ -125,6 +127,10 @@ impl MyDrone {
     }
 
     fn add_channel(&mut self, id: NodeId, sender: Sender<Packet>) {
+        if id == self.id {
+            panic!("Cannot add a channel with the same NodeId of this drone");
+        }
+
         match self.packet_send.insert(id, sender) {
             Some(_previous_sender) => {
                 log::info!("Sender to node {id} updated");
