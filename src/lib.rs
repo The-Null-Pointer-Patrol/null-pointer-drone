@@ -144,17 +144,16 @@ impl MyDrone {
     }
 
     fn process_not_flood_request(&self, mut packet: Packet) {
+        if matches!(packet.pack_type, PacketType::FloodRequest(_)) {
+            panic!("not expecting a packet of type flood request")
+        }
+
         let current_index = packet.routing_header.hop_index;
 
         if packet.routing_header.is_empty() {
             panic!("empty routing header for packet {packet}")
         }
 
-        if matches!(packet.pack_type, PacketType::FloodRequest(_)) {
-            panic!("not expecting a packet of type flood request")
-        }
-        // TODO: decide if this should be a panic, when decided document it in readme because it's
-        // not a behavior well defined by the protocol
         if current_index >= packet.routing_header.hops.len() {
             panic!(
                 "hop_index out of bounds: index {current_index} for hops {:?}",
@@ -259,8 +258,6 @@ impl MyDrone {
                 // - send_packet uses it to know where to send the packet
                 // - when logging we always show the Packet sourceroutingHeader, and this gives use
                 // more information
-                // TODO: behavior not defined in protocol so it's worth to document it in the
-                // readme if we keep it
                 let routing_header = SourceRoutingHeader {
                     hop_index: 1,
                     hops: vec![self.id, *next_hop],
@@ -398,13 +395,10 @@ impl MyDrone {
         if matches!(nack_type, NackType::Dropped) {
             self.send_event(&DroneEvent::PacketDropped(original_packet.clone()));
 
-            // TODO: another small detail not too clear in the protocol: here we send the
+            // another small detail not too clear in the protocol: here we send the
             // original_packet which had already his hop_index increased so its pointing to
             // where we would have sent him if everything went ok, other option is having
             // hop_index-1 as it was when packet arrived.
-            // The fact that we choose one of the two IMO should be documented in the
-            // readme, because it could be unexpected when viewing the list of dropped packets in
-            // the simulation controller
         }
         self.send_packet(packet);
     }
