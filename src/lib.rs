@@ -1,6 +1,6 @@
 use core::panic;
 use std::cell::RefCell;
-use crossbeam_channel::{select_biased, Receiver, Sender};
+use crossbeam_channel::{select, select_biased, Receiver, Sender};
 use log::warn;
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
@@ -72,6 +72,12 @@ impl Drone for MyDrone {
                 From https://shadow.github.io/docs/rust/crossbeam/channel/macro.select_biased.html
                 "If multiple operations are ready at the same time, the operation nearest to the front of the list is always selected"
                 So recv(self.controller_recv) needs to come before recv(self.packet_recv)
+
+                WARNING: select_biased! seems to select a channel even if one end of it is dropped
+                         for instance, if I create a drone and drop the Sender<DroneCommand> channel and I keep using the drone,
+                         then the drone will always select the recv(self.controller_recv) arm, since it receives an Err().
+                         This means that the drone stops working properly in the case of bad channels management.
+                         Interestingly, this didn't occur with the select! macro
              */
             select_biased! {
                 recv(self.controller_recv) -> command_res => {
