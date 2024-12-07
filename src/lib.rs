@@ -1,5 +1,5 @@
 use core::panic;
-use crossbeam_channel::{select, Receiver, Sender};
+use crossbeam_channel::{select, select_biased, Receiver, Sender};
 use log::warn;
 use rand::Rng;
 use std::cell::RefCell;
@@ -58,25 +58,12 @@ impl Drone for MyDrone {
 
     fn run(&mut self) {
         'loop_label: loop {
-            // TODO: use select_biased! to prioritize simulation controller commands
-            select! {
-                recv(self.packet_recv) -> packet_res => {
-                    match packet_res {
-                        Err(_err) => {
-                             match &self.state {
-                                 State::Working => {
-                                     panic!("There is no connected sender to the drone's receiver channel and no DroneCommand::Crash has been received")
-                                 },
-                                 State::Crashing => {
-                                     break 'loop_label
-                                 },
-                             }
-                        }
-                        Ok(packet) => {
-                            self.process_packet(packet);
-                        }
-                    }
-                },
+            /*
+                From https://shadow.github.io/docs/rust/crossbeam/channel/macro.select_biased.html
+                "If multiple operations are ready at the same time, the operation nearest to the front of the list is always selected"
+                So recv(self.controller_recv) needs to come before recv(self.packet_recv)
+             */
+            select_biased! {
                 recv(self.controller_recv) -> command_res => {
                     if let Ok(command) = command_res {
                         match command
@@ -102,7 +89,24 @@ impl Drone for MyDrone {
                             },
                         }
                     }
-                }
+                },
+                recv(self.packet_recv) -> packet_res => {
+                    match packet_res {
+                        Err(_err) => {
+                             match &self.state {
+                                 State::Working => {
+                                     panic!("There is no connected sender to the drone's receiver channel and no DroneCommand::Crash has been received")
+                                 },
+                                 State::Crashing => {
+                                     break 'loop_label
+                                 },
+                             }
+                        }
+                        Ok(packet) => {
+                            self.process_packet(packet);
+                        }
+                    }
+                },
             }
         }
     }
