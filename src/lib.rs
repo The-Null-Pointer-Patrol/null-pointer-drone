@@ -1,14 +1,16 @@
 use core::panic;
-use crossbeam_channel::{select, Receiver, Sender};
+use std::cell::RefCell;
+use crossbeam_channel::{select, select_biased, Receiver, Sender};
 use log::warn;
 use rand::Rng;
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::usize;
+use std::ops::{Range, RangeInclusive};
+use rand::distr::uniform::{SampleRange, SampleUniform};
 use wg_2024::controller::{DroneCommand, DroneEvent};
 use wg_2024::drone::Drone;
 use wg_2024::network::{NodeId, SourceRoutingHeader};
 use wg_2024::packet::{FloodRequest, FloodResponse, Nack, NackType, NodeType, Packet, PacketType};
+use rand::rngs::ThreadRng;
 
 enum State {
     Working,
@@ -22,9 +24,17 @@ pub struct MyDrone {
     packet_recv: Receiver<Packet>,
     pdr: f32,
     packet_send: HashMap<NodeId, Sender<Packet>>,
-    known_flood_ids: RefCell<HashSet<(u64, NodeId)>>,
+    known_flood_ids: HashSet<(u64, NodeId)>,
     state: State,
-    // rng: ThreadRng,
+}
+
+// Thread-local storage for `ThreadRng`
+thread_local! {
+    static RNG: RefCell<ThreadRng> = RefCell::new(rand::rng());
+}
+
+fn generate_random_value_in_range(range: RangeInclusive<f32>) -> f32 {
+    RNG.with(|rng| rng.borrow_mut().random_range(range)) // Use the thread-local RNG
 }
 
 impl Drone for MyDrone {
@@ -36,11 +46,13 @@ impl Drone for MyDrone {
         packet_send: HashMap<NodeId, Sender<Packet>>,
         pdr: f32,
     ) -> Self {
-        // TODO: decide if we need more input validation
+        // TODO: Use existing functions to make assertions?
+        // As the check below, can't we just use self.add_channel for each packet_send entry to avoid repeating any logic?
         assert!(
             !packet_send.contains_key(&id),
             "neighbor with id {id} which is the same as drone"
         );
+        // Can't we just re-use self.set_pdr to avoid repeating the range checking logic?
         assert!((0.0..=1.0).contains(&pdr), "pdr out of bounds");
         Self {
             id,
@@ -49,34 +61,25 @@ impl Drone for MyDrone {
             packet_recv,
             pdr,
             packet_send,
-            // TODO: I don't understand why we need to use RefCell here???
-            known_flood_ids: RefCell::new(HashSet::new()),
+            known_flood_ids: HashSet::new(),
             state: State::Working,
-            // rng: rand::rng(),
         }
     }
 
     fn run(&mut self) {
         'loop_label: loop {
-            // TODO: use select_biased! to prioritize simulation controller commands
-            select! {
-                recv(self.packet_recv) -> packet_res => {
-                    match packet_res {
-                        Err(_err) => {
-                             match &self.state {
-                                 State::Working => {
-                                     panic!("There is no connected sender to the drone's receiver channel and no DroneCommand::Crash has been received")
-                                 },
-                                 State::Crashing => {
-                                     break 'loop_label
-                                 },
-                             }
-                        }
-                        Ok(packet) => {
-                            self.process_packet(packet);
-                        }
-                    }
-                },
+            /*
+                From https://shadow.github.io/docs/rust/crossbeam/channel/macro.select_biased.html
+                "If multiple operations are ready at the same time, the operation nearest to the front of the list is always selected"
+                So recv(self.controller_recv) needs to come before recv(self.packet_recv)
+
+                WARNING: select_biased! seems to select a channel even if one end of it is dropped
+                         for instance, if I create a drone and drop the Sender<DroneCommand> channel and I keep using the drone,
+                         then the drone will always select the recv(self.controller_recv) arm, since it receives an Err().
+                         This means that the drone stops working properly in the case of bad channels management.
+                         Interestingly, this didn't occur with the select! macro
+             */
+            select_biased! {
                 recv(self.controller_recv) -> command_res => {
                     if let Ok(command) = command_res {
                         match command
@@ -102,7 +105,24 @@ impl Drone for MyDrone {
                             },
                         }
                     }
-                }
+                },
+                recv(self.packet_recv) -> packet_res => {
+                    match packet_res {
+                        Err(_err) => {
+                             match &self.state {
+                                 State::Working => {
+                                     panic!("There is no connected sender to the drone's receiver channel and no DroneCommand::Crash has been received")
+                                 },
+                                 State::Crashing => {
+                                     break 'loop_label
+                                 },
+                             }
+                        }
+                        Ok(packet) => {
+                            self.process_packet(packet);
+                        }
+                    }
+                },
             }
         }
     }
@@ -121,6 +141,8 @@ impl MyDrone {
     }
 
     fn add_channel(&mut self, id: NodeId, sender: Sender<Packet>) {
+        assert!(!(id == self.id), "Cannot add a channel with the same NodeId of this drone");
+
         match self.packet_send.insert(id, sender) {
             Some(_previous_sender) => {
                 log::info!("Sender to node {id} updated");
@@ -134,7 +156,7 @@ impl MyDrone {
 
 // packet processing section
 impl MyDrone {
-    pub fn process_packet(&self, mut packet: Packet) {
+    pub fn process_packet(&mut self, packet: Packet) {
         match packet.pack_type {
             // flood requests do not care about source routing header so there is another logic for
             // them
@@ -143,23 +165,17 @@ impl MyDrone {
         }
     }
 
-    fn process_not_flood_request(&self, mut packet: Packet) {
+    fn process_not_flood_request(&mut self, mut packet: Packet) {
         if matches!(packet.pack_type, PacketType::FloodRequest(_)) {
             panic!("not expecting a packet of type flood request")
         }
 
         let current_index = packet.routing_header.hop_index;
 
-        if packet.routing_header.is_empty() {
-            panic!("empty routing header for packet {packet}")
-        }
+        assert!(!packet.routing_header.is_empty(), "empty routing header for packet {packet}");
 
-        if current_index >= packet.routing_header.hops.len() {
-            panic!(
-                "hop_index out of bounds: index {current_index} for hops {:?}",
-                packet.routing_header.hops
-            );
-        }
+        assert!(!(current_index >= packet.routing_header.hops.len()),
+                "hop_index out of bounds: index {current_index} for hops {:?}", packet.routing_header.hops);
 
         let current_hop = packet.routing_header.hops.get(current_index).unwrap();
         if *current_hop != self.id {
@@ -183,7 +199,7 @@ impl MyDrone {
         self.send_packet(packet);
     }
 
-    fn process_flood_request(&self, packet: Packet) {
+    fn process_flood_request(&mut self, packet: Packet) {
         let flood_request = match packet.pack_type {
             PacketType::FloodRequest(f) => f,
             _ => panic!("expecting a packet of type flood request"),
@@ -208,7 +224,6 @@ impl MyDrone {
 
         if self
             .known_flood_ids
-            .borrow()
             .contains(&(flood_id, initiator_id))
             || drone_has_no_other_neighbors
         {
@@ -234,7 +249,6 @@ impl MyDrone {
             self.send_packet(flood_response_packet);
         } else {
             self.known_flood_ids
-                .borrow_mut()
                 .insert((flood_id, initiator_id));
 
             let flood_request = FloodRequest {
@@ -278,7 +292,7 @@ impl MyDrone {
 impl MyDrone {
     /// takes a packet whose routing header hop index already points to the intended destination
     /// sends that packet through the `channel` corresponding to the current hop index, panics if there is a SendError
-    fn send_packet(&self, packet: Packet) {
+    fn send_packet(&mut self, packet: Packet) {
         // TODO: we could use some checks at least that hop_idx and hop_idx+1 are contained in the
         // hops
 
@@ -291,9 +305,7 @@ impl MyDrone {
         if let Some(channel) = self.packet_send.get(&dest) {
             // packet drop logic
             if matches!(packet.pack_type, PacketType::MsgFragment(_)) {
-                // TODO: fix rand::rng();
-                let mut rng = rand::rng();
-                let random_number: f32 = rng.random_range(0.0..=1.0);
+                let random_number: f32 = generate_random_value_in_range(0.0..=1.0);
 
                 if random_number < self.pdr {
                     self.make_and_send_nack(
@@ -361,13 +373,17 @@ impl MyDrone {
     /// route so that it goes from `original_recipient_idx` to the node that sent `original_packet`
     /// (the one at index 0)
     fn make_and_send_nack(
-        &self,
+        &mut self,
         original_packet: &Packet,
         original_recipient_idx: usize,
         nack_type: NackType,
     ) {
         // TODO: add checks for original_recipient_idx or alternatively do it like with packet_send
         // and use hop_index to find out the original_recipient
+        if let None = original_packet.routing_header.hops.get(original_recipient_idx) {
+            panic!("original recipient index out of bounds");
+        }
+
         let fragment_index = match &original_packet.pack_type {
             PacketType::MsgFragment(frag) => frag.fragment_index,
             // if the packet is not a fragment it is considered as a whole so frag index is 0

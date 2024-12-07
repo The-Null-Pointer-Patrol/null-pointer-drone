@@ -10,11 +10,13 @@ use wg_2024::{
     network::SourceRoutingHeader,
     packet::{Ack, FloodResponse, Nack, NackType, NodeType, Packet, PacketType},
 };
+use wg_2024::controller::DroneCommand;
+
 mod common;
 
 #[test]
 fn forward_frag() {
-    let (my_drone, packet_send, packet_recv, event_recv) = make_forwarding_drone();
+    let (my_drone, packet_send, packet_recv, event_recv, controller_to_drone) = make_forwarding_drone();
     let _handle = start_drone_thread(my_drone);
 
     let frag = default_fragment(0, 10);
@@ -32,7 +34,7 @@ fn forward_frag() {
 
 #[test]
 fn forward_ack() {
-    let (my_drone, packet_send, packet_recv, event_recv) = make_forwarding_drone();
+    let (my_drone, packet_send, packet_recv, event_recv, controller_to_drone) = make_forwarding_drone();
     let _handle = start_drone_thread(my_drone);
 
     let packet = Packet {
@@ -48,7 +50,7 @@ fn forward_ack() {
 
 #[test]
 fn forward_flood_response() {
-    let (my_drone, packet_send, packet_recv, event_recv) = make_forwarding_drone();
+    let (my_drone, packet_send, packet_recv, event_recv, controller_to_drone) = make_forwarding_drone();
     let _handle = start_drone_thread(my_drone);
 
     let packet = Packet {
@@ -68,7 +70,7 @@ fn forward_flood_response() {
 
 #[test]
 fn forward_nack() {
-    let (my_drone, packet_send, packet_recv, event_recv) = make_forwarding_drone();
+    let (my_drone, packet_send, packet_recv, event_recv, controller_to_drone) = make_forwarding_drone();
     let _handle = start_drone_thread(my_drone);
 
     let p1 = Packet {
@@ -144,8 +146,9 @@ fn make_forwarding_drone() -> (
     Sender<Packet>,
     Receiver<Packet>,
     Receiver<DroneEvent>,
+    Sender<DroneCommand>
 ) {
-    let (controller_send, r1, _, controller_recv, packet_send, packet_recv) = create_channels();
+    let (controller_send, r1, send_drone_commands, controller_recv, packet_send, packet_recv) = create_channels();
     let (s2, r2) = unbounded::<Packet>();
     let mut senders = HashMap::new();
     senders.insert(1, s2);
@@ -157,7 +160,7 @@ fn make_forwarding_drone() -> (
         senders,
         0.0,
     );
-    (my_drone, packet_send, r2, r1)
+    (my_drone, packet_send, r2, r1, send_drone_commands)
 }
 fn send_and_check_forward(
     s: Sender<Packet>,
