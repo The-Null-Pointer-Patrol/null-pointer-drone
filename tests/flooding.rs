@@ -14,7 +14,7 @@ mod common;
 
 #[test]
 fn flood_request_propagation() {
-    let (event_send, event_recv, _, controller_recv, packet_send, packet_recv) = create_channels();
+    let (event_send, event_recv, _controller_send, controller_recv, packet_send, packet_recv) = create_channels();
 
     let (s2, r2) = unbounded::<Packet>();
     let (s3, r3) = unbounded::<Packet>();
@@ -90,7 +90,7 @@ fn flood_request_propagation() {
 
 #[test]
 fn flood_request_no_neighbors() {
-    let (event_send, event_recv, _, controller_recv, packet_send, packet_recv) = create_channels();
+    let (event_send, event_recv, _controller_send, controller_recv, packet_send, packet_recv) = create_channels();
 
     let (s2, r2) = unbounded::<Packet>();
     let mut senders = HashMap::new();
