@@ -335,9 +335,13 @@ impl MyDrone {
             }
         } else {
             match &packet.pack_type {
-                PacketType::MsgFragment(_) | PacketType::FloodRequest(_) => {
+                PacketType::MsgFragment(_) => {
                     let idx = packet.routing_header.previous_hop().unwrap();
                     self.make_and_send_nack(&packet, idx as usize, NackType::ErrorInRouting(dest));
+                }
+                PacketType::FloodRequest(_) => {
+                    // do not send any NACK nor any other message if a FloodRequest cannot be sent
+                    // in the requested channel
                 }
                 _ => {
                     let event = DroneEvent::ControllerShortcut(packet);
