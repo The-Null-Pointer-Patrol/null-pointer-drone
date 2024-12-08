@@ -39,7 +39,7 @@ fn mismatched_hop_index() {
     // Invalid header with mismatched hop index and drone position
     let source_routing_header = SourceRoutingHeader {
         hop_index: 2,                 // the hop index is mismatched with drone id
-        hops: vec![0, 1, 2, 3, 4, 5], // drone is set to be destination
+        hops: vec![0, 1, 2, 3, 4, 5],
     };
 
     // Nothing special fragment
