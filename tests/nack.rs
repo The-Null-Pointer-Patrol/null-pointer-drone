@@ -13,8 +13,8 @@ mod common;
 fn mismatched_hop_index() {
     // Create channels
     let (packet_send, packet_recv) = crossbeam_channel::unbounded::<Packet>();
-    let (controller_send, _) = crossbeam_channel::unbounded::<DroneEvent>();
-    let (_, controller_recv) = crossbeam_channel::unbounded::<DroneCommand>();
+    let (controller_send, _cr) = crossbeam_channel::unbounded::<DroneEvent>();
+    let (_cs, controller_recv) = crossbeam_channel::unbounded::<DroneCommand>();
 
     // create neighbor
     let (neighbour_send, neighbour_receive) = unbounded::<Packet>();
@@ -96,8 +96,8 @@ fn mismatched_hop_index() {
 fn drone_as_destination() {
     // Create channels
     let (packet_send, packet_recv) = crossbeam_channel::unbounded::<Packet>();
-    let (controller_send, _) = crossbeam_channel::unbounded::<DroneEvent>();
-    let (_, controller_recv) = crossbeam_channel::unbounded::<DroneCommand>();
+    let (controller_send, _cr) = crossbeam_channel::unbounded::<DroneEvent>();
+    let (cs_, controller_recv) = crossbeam_channel::unbounded::<DroneCommand>();
 
     // create neighbor
     let (neighbour_send, neighbour_receive) = unbounded::<Packet>();
@@ -178,8 +178,8 @@ fn drone_as_destination() {
 fn nack_when_dropped() {
     // Create channels
     let (packet_send, packet_recv) = crossbeam_channel::unbounded::<Packet>();
-    let (controller_send, _) = crossbeam_channel::unbounded::<DroneEvent>();
-    let (_, controller_recv) = crossbeam_channel::unbounded::<DroneCommand>();
+    let (controller_send, _cr) = crossbeam_channel::unbounded::<DroneEvent>();
+    let (_cs, controller_recv) = crossbeam_channel::unbounded::<DroneCommand>();
 
     // create neighbor
     let (neighbour_send_1, neighbour_receive_1) = unbounded::<Packet>();
@@ -262,8 +262,8 @@ fn nack_when_dropped() {
 fn nack_when_there_are_no_neighbours() {
     // Create channels
     let (packet_send, packet_recv) = crossbeam_channel::unbounded::<Packet>();
-    let (controller_send, _) = crossbeam_channel::unbounded::<DroneEvent>();
-    let (_, controller_recv) = crossbeam_channel::unbounded::<DroneCommand>();
+    let (controller_send, _cr) = crossbeam_channel::unbounded::<DroneEvent>();
+    let (_cs, controller_recv) = crossbeam_channel::unbounded::<DroneCommand>();
 
     // create neighbor
     let (neighbour_send_1, neighbour_receive_1) = unbounded::<Packet>();
