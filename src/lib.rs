@@ -10,6 +10,7 @@ use wg_2024::drone::Drone;
 use wg_2024::network::{NodeId, SourceRoutingHeader};
 use wg_2024::packet::{FloodRequest, FloodResponse, Nack, NackType, NodeType, Packet, PacketType};
 
+#[derive(Clone, Copy, Debug)]
 enum State {
     Working,
     Crashing,
@@ -86,17 +87,10 @@ impl Drone for MyDrone {
                                 self.set_pdr(pdr);
                             },
                             DroneCommand::Crash => {
-                                self.state = State::Crashing;
+                                self.set_state(State::Crashing);
                             },
                             DroneCommand::RemoveSender(node_id_to_be_removed) => {
-                                match self.packet_send.remove(&node_id_to_be_removed) {
-                                    Some(_removed_channel) => {
-                                        log::info!("Channel to {node_id_to_be_removed} removed successfully");
-                                    },
-                                    None => {
-                                        panic!("Cannot remove channel to {node_id_to_be_removed}: it does not exist")
-                                    },
-                                }
+                                self.remove_channel(node_id_to_be_removed);
                             },
                         }
                     } else {
@@ -152,6 +146,22 @@ impl MyDrone {
                 log::info!("Sender channel to node {id} inserted");
             }
         }
+    }
+
+    fn remove_channel(&mut self, node_id: NodeId) {
+        match self.packet_send.remove(&node_id) {
+            Some(_removed_channel) => {
+                log::info!("Channel to {node_id} removed successfully");
+            }
+            None => {
+                panic!("Cannot remove channel to {node_id}: it does not exist")
+            }
+        }
+    }
+
+    fn set_state(&mut self, state: State) {
+        self.state = state;
+        log::info!("state set to {state:?}");
     }
 }
 
@@ -295,7 +305,7 @@ impl MyDrone {
 impl MyDrone {
     /// takes a packet whose routing header hop index already points to the intended destination
     /// sends that packet through the `channel` corresponding to the current hop index, panics if there is a `SendError`
-    fn send_packet(&mut self, packet: Packet) {
+    fn send_packet(&self, packet: Packet) {
         // use hop_idx to get id of destination:
         let dest = packet
             .routing_header
@@ -304,17 +314,10 @@ impl MyDrone {
 
         if let Some(channel) = self.packet_send.get(&dest) {
             // packet drop logic
-            if matches!(packet.pack_type, PacketType::MsgFragment(_)) {
-                let random_number: f32 = generate_random_value_in_range(0.0..=1.0);
-
-                if random_number < self.pdr {
-                    self.make_and_send_nack(
-                        &packet,
-                        packet.routing_header.hop_index - 1,
-                        NackType::Dropped,
-                    );
-                    return;
-                }
+            if matches!(packet.pack_type, PacketType::MsgFragment(_))
+                && self.roll_a_dice_and_decide_maybe_drop_packet(&packet)
+            {
+                return;
             }
 
             match channel.send(packet.clone()) {
@@ -343,6 +346,24 @@ impl MyDrone {
             }
         };
     }
+
+    /// This method handles the logic of the packet dropping.
+    /// It decides to drop a packet or not and, if it does, it creates and sends the related
+    /// NACK packet
+    fn roll_a_dice_and_decide_maybe_drop_packet(&self, packet: &Packet) -> bool {
+        let random_number: f32 = generate_random_value_in_range(0.0..=1.0);
+
+        if random_number < self.pdr {
+            self.make_and_send_nack(
+                packet,
+                packet.routing_header.hop_index - 1,
+                NackType::Dropped,
+            );
+            return true;
+        }
+        false
+    }
+
     /// sends an event to the simulation controller
     /// # Panics
     /// Panics if `self.controller_send.send()` fails
@@ -374,7 +395,7 @@ impl MyDrone {
     /// route so that it goes from `original_recipient_idx` to the node that sent `original_packet`
     /// (the one at index 0)
     fn make_and_send_nack(
-        &mut self,
+        &self,
         original_packet: &Packet,
         original_recipient_idx: usize,
         nack_type: NackType,
