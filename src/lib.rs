@@ -1,14 +1,14 @@
 use core::panic;
-use std::cell::RefCell;
 use crossbeam_channel::{select_biased, Receiver, Sender};
+use rand::rngs::ThreadRng;
 use rand::Rng;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 use wg_2024::controller::{DroneCommand, DroneEvent};
 use wg_2024::drone::Drone;
 use wg_2024::network::{NodeId, SourceRoutingHeader};
 use wg_2024::packet::{FloodRequest, FloodResponse, Nack, NackType, NodeType, Packet, PacketType};
-use rand::rngs::ThreadRng;
 
 enum State {
     Working,
@@ -64,16 +64,16 @@ impl Drone for MyDrone {
     fn run(&mut self) {
         'loop_label: loop {
             /*
-                From https://shadow.github.io/docs/rust/crossbeam/channel/macro.select_biased.html
-                "If multiple operations are ready at the same time, the operation nearest to the front of the list is always selected"
-                So recv(self.controller_recv) needs to come before recv(self.packet_recv)
+               From https://shadow.github.io/docs/rust/crossbeam/channel/macro.select_biased.html
+               "If multiple operations are ready at the same time, the operation nearest to the front of the list is always selected"
+               So recv(self.controller_recv) needs to come before recv(self.packet_recv)
 
-                WARNING: select_biased! seems to select a channel even if one end of it is dropped
-                         for instance, if I create a drone and drop the Sender<DroneCommand> channel and I keep using the drone,
-                         then the drone will always select the recv(self.controller_recv) arm, since it receives an Err().
-                         This means that the drone stops working properly in the case of bad channels management.
-                         Interestingly, this didn't occur with the select! macro
-             */
+               WARNING: select_biased! seems to select a channel even if one end of it is dropped
+                        for instance, if I create a drone and drop the Sender<DroneCommand> channel and I keep using the drone,
+                        then the drone will always select the recv(self.controller_recv) arm, since it receives an Err().
+                        This means that the drone stops working properly in the case of bad channels management.
+                        Interestingly, this didn't occur with the select! macro
+            */
             select_biased! {
                 recv(self.controller_recv) -> command_res => {
                     if let Ok(command) = command_res {
@@ -138,7 +138,11 @@ impl MyDrone {
     }
 
     fn add_channel(&mut self, id: NodeId, sender: Sender<Packet>) {
-        assert!(!(id == self.id), "Cannot add a channel with the same NodeId of this drone (which is {})", self.id);
+        assert_ne!(
+            id, self.id,
+            "Cannot add a channel with the same NodeId of this drone (which is {})",
+            self.id
+        );
 
         match self.packet_send.insert(id, sender) {
             Some(_previous_sender) => {
@@ -169,10 +173,16 @@ impl MyDrone {
 
         let current_index = packet.routing_header.hop_index;
 
-        assert!(!packet.routing_header.is_empty(), "empty routing header for packet {packet}");
+        assert!(
+            !packet.routing_header.is_empty(),
+            "empty routing header for packet {packet}"
+        );
 
-        assert!(!(current_index >= packet.routing_header.hops.len()),
-                "hop_index out of bounds: index {current_index} for hops {:?}", packet.routing_header.hops);
+        assert!(
+            current_index < packet.routing_header.hops.len(),
+            "hop_index out of bounds: index {current_index} for hops {:?}",
+            packet.routing_header.hops
+        );
 
         let current_hop = packet.routing_header.hops.get(current_index).unwrap();
         if *current_hop != self.id {
@@ -197,14 +207,14 @@ impl MyDrone {
     }
 
     fn process_flood_request(&mut self, packet: Packet) {
-        let flood_request = match packet.pack_type {
-            PacketType::FloodRequest(f) => f,
-            _ => panic!("expecting a packet of type flood request"),
+        let PacketType::FloodRequest(flood_request) = packet.pack_type else {
+            panic!("expecting a packet of type flood request")
         };
 
-        let received_from = match flood_request.path_trace.last() {
-            Some((node_id, _node_type)) => node_id,
-            None => panic!("flood request has no path trace"), // TODO: decide if it is appropriate to panic
+        // TODO: decide if it is appropriate to panic or if we can just return from this function,
+        // dropping the flood request (without even signaling it?)
+        let Some((received_from, _node_type)) = flood_request.path_trace.last() else {
+            panic!("flood request has no path trace")
         };
 
         let flood_id = flood_request.flood_id;
@@ -219,10 +229,7 @@ impl MyDrone {
             .count()
             == 0;
 
-        if self
-            .known_flood_ids
-            .contains(&(flood_id, initiator_id))
-            || drone_has_no_other_neighbors
+        if self.known_flood_ids.contains(&(flood_id, initiator_id)) || drone_has_no_other_neighbors
         {
             let flood_response = PacketType::FloodResponse(FloodResponse {
                 flood_id,
@@ -245,8 +252,7 @@ impl MyDrone {
             };
             self.send_packet(flood_response_packet);
         } else {
-            self.known_flood_ids
-                .insert((flood_id, initiator_id));
+            self.known_flood_ids.insert((flood_id, initiator_id));
 
             let flood_request = FloodRequest {
                 flood_id,
@@ -288,11 +294,8 @@ impl MyDrone {
 // packet sending section
 impl MyDrone {
     /// takes a packet whose routing header hop index already points to the intended destination
-    /// sends that packet through the `channel` corresponding to the current hop index, panics if there is a SendError
+    /// sends that packet through the `channel` corresponding to the current hop index, panics if there is a `SendError`
     fn send_packet(&mut self, packet: Packet) {
-        // TODO: we could use some checks at least that hop_idx and hop_idx+1 are contained in the
-        // hops
-
         // use hop_idx to get id of destination:
         let dest = packet
             .routing_header
@@ -328,7 +331,7 @@ impl MyDrone {
                 }
             }
         } else {
-            match packet.pack_type.clone() {
+            match &packet.pack_type {
                 PacketType::MsgFragment(_) | PacketType::FloodRequest(_) => {
                     let idx = packet.routing_header.previous_hop().unwrap();
                     self.make_and_send_nack(&packet, idx as usize, NackType::ErrorInRouting(dest));
@@ -341,7 +344,8 @@ impl MyDrone {
         };
     }
     /// sends an event to the simulation controller
-    /// panics if `self.controller_send.send()` fails
+    /// # Panics
+    /// Panics if `self.controller_send.send()` fails
     pub fn send_event(&self, event: &DroneEvent) {
         match self.controller_send.send(event.clone()) {
             Ok(()) => {
@@ -366,7 +370,7 @@ impl MyDrone {
     }
 
     /// all nacks that are generated by this drone pass through here:
-    /// creates and sends a nack with the given NackType, containing the `original_packet` and reversing the
+    /// creates and sends a nack with the given `NackType`, containing the `original_packet` and reversing the
     /// route so that it goes from `original_recipient_idx` to the node that sent `original_packet`
     /// (the one at index 0)
     fn make_and_send_nack(
@@ -375,11 +379,14 @@ impl MyDrone {
         original_recipient_idx: usize,
         nack_type: NackType,
     ) {
-        // TODO: add checks for original_recipient_idx or alternatively do it like with packet_send
-        // and use hop_index to find out the original_recipient
-        if let None = original_packet.routing_header.hops.get(original_recipient_idx) {
-            panic!("original recipient index out of bounds");
-        }
+        assert!(
+            original_packet
+                .routing_header
+                .hops
+                .get(original_recipient_idx)
+                .is_some(),
+            "original recipient index out of bounds"
+        );
 
         let fragment_index = match &original_packet.pack_type {
             PacketType::MsgFragment(frag) => frag.fragment_index,
