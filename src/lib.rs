@@ -1,11 +1,9 @@
 use core::panic;
 use std::cell::RefCell;
-use crossbeam_channel::{select, select_biased, Receiver, Sender};
-use log::warn;
+use crossbeam_channel::{select_biased, Receiver, Sender};
 use rand::Rng;
 use std::collections::{HashMap, HashSet};
-use std::ops::{Range, RangeInclusive};
-use rand::distr::uniform::{SampleRange, SampleUniform};
+use std::ops::RangeInclusive;
 use wg_2024::controller::{DroneCommand, DroneEvent};
 use wg_2024::drone::Drone;
 use wg_2024::network::{NodeId, SourceRoutingHeader};
@@ -46,24 +44,21 @@ impl Drone for MyDrone {
         packet_send: HashMap<NodeId, Sender<Packet>>,
         pdr: f32,
     ) -> Self {
-        // TODO: Use existing functions to make assertions?
-        // As the check below, can't we just use self.add_channel for each packet_send entry to avoid repeating any logic?
-        assert!(
-            !packet_send.contains_key(&id),
-            "neighbor with id {id} which is the same as drone"
-        );
-        // Can't we just re-use self.set_pdr to avoid repeating the range checking logic?
-        assert!((0.0..=1.0).contains(&pdr), "pdr out of bounds");
-        Self {
+        let mut result = Self {
             id,
             controller_send,
             controller_recv,
             packet_recv,
-            pdr,
-            packet_send,
+            pdr: 0f32,
+            packet_send: HashMap::new(),
             known_flood_ids: HashSet::new(),
             state: State::Working,
+        };
+        result.set_pdr(pdr);
+        for (node_id, channel) in packet_send {
+            result.add_channel(node_id, channel);
         }
+        result
     }
 
     fn run(&mut self) {
@@ -104,6 +99,8 @@ impl Drone for MyDrone {
                                 }
                             },
                         }
+                    } else {
+                        panic!("The Sender<DroneCommand> end of the simulation controller channel unexpectedly got dropped");
                     }
                 },
                 recv(self.packet_recv) -> packet_res => {
@@ -137,18 +134,18 @@ impl MyDrone {
             "Tried to set an invalid pdr value of {pdr}, which is not in range (0.0..=1.0)"
         );
         self.pdr = pdr;
-        log::info!("pdr updated to {pdr}");
+        log::info!("pdr set to {pdr}");
     }
 
     fn add_channel(&mut self, id: NodeId, sender: Sender<Packet>) {
-        assert!(!(id == self.id), "Cannot add a channel with the same NodeId of this drone");
+        assert!(!(id == self.id), "Cannot add a channel with the same NodeId of this drone (which is {})", self.id);
 
         match self.packet_send.insert(id, sender) {
             Some(_previous_sender) => {
-                log::info!("Sender to node {id} updated");
+                log::info!("Sender channel to node {id} updated");
             }
             None => {
-                log::info!("Sender to node {id} inserted");
+                log::info!("Sender channel to node {id} inserted");
             }
         }
     }
