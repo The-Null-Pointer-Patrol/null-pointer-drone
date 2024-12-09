@@ -16,6 +16,7 @@ enum State {
     Crashing,
 }
 
+#[derive(Debug)]
 pub struct MyDrone {
     id: NodeId,
     controller_send: Sender<DroneEvent>,
@@ -59,6 +60,7 @@ impl Drone for MyDrone {
         for (node_id, channel) in packet_send {
             result.add_channel(node_id, channel);
         }
+        log::info!("\"null-pointer-drone\" drone created: {:?}", result);
         result
     }
 
@@ -77,6 +79,7 @@ impl Drone for MyDrone {
             */
             select_biased! {
                 recv(self.controller_recv) -> command_res => {
+                    log::info!("Received controller command: {command_res:?}");
                     if let Ok(command) = command_res {
                         match command
                         {
@@ -98,6 +101,7 @@ impl Drone for MyDrone {
                     }
                 },
                 recv(self.packet_recv) -> packet_res => {
+                    log::info!("Received packet: {packet_res:?}");
                     match packet_res {
                         Err(_err) => {
                              match &self.state {
@@ -105,11 +109,13 @@ impl Drone for MyDrone {
                                      panic!("There is no connected sender to the drone's receiver channel and no DroneCommand::Crash has been received")
                                  },
                                  State::Crashing => {
-                                     break 'loop_label
+                                    log::info!("Drone is finally crashing, no more packets will be processed");
+                                    break 'loop_label
                                  },
                              }
                         }
                         Ok(packet) => {
+                            log::info!("Processing packet {packet}");
                             self.process_packet(packet);
                         }
                     }
@@ -205,6 +211,10 @@ impl MyDrone {
         }
 
         if packet.routing_header.is_last_hop() {
+            log::warn!(
+                "Drone is the destination of the packet, sending back {:?}",
+                NackType::DestinationIsDrone
+            );
             self.make_and_send_nack(&packet, current_index, NackType::DestinationIsDrone);
             return;
         }
@@ -241,6 +251,7 @@ impl MyDrone {
 
         if self.known_flood_ids.contains(&(flood_id, initiator_id)) || drone_has_no_other_neighbors
         {
+            log::info!("Received flood request with known ({flood_id}, {initiator_id}) or the drone has no other neighbors, sending back a flood response");
             let flood_response = PacketType::FloodResponse(FloodResponse {
                 flood_id,
                 path_trace: new_path_trace.clone(),
@@ -262,6 +273,7 @@ impl MyDrone {
             };
             self.send_packet(flood_response_packet);
         } else {
+            log::info!("Received a new flood request, forwarding it to every other neighbor...");
             self.known_flood_ids.insert((flood_id, initiator_id));
 
             let flood_request = FloodRequest {
@@ -336,14 +348,20 @@ impl MyDrone {
         } else {
             match &packet.pack_type {
                 PacketType::MsgFragment(_) => {
+                    log::info!(
+                        "Next hop of header is not a neighbor of drone, creating {:?}",
+                        NackType::ErrorInRouting(dest)
+                    );
                     let idx = packet.routing_header.previous_hop().unwrap();
                     self.make_and_send_nack(&packet, idx as usize, NackType::ErrorInRouting(dest));
                 }
                 PacketType::FloodRequest(_) => {
+                    log::info!("Ignoring flood request");
                     // do not send any NACK nor any other message if a FloodRequest cannot be sent
                     // in the requested channel
                 }
                 _ => {
+                    log::info!("Sending packet {packet} to simulation controller to shortcut it");
                     let event = DroneEvent::ControllerShortcut(packet);
                     self.send_event(&event);
                 }
@@ -358,6 +376,7 @@ impl MyDrone {
         let random_number: f32 = generate_random_value_in_range(0.0..=1.0);
 
         if random_number < self.pdr {
+            log::info!("Dropping packet due to drone's pdr");
             self.make_and_send_nack(
                 packet,
                 packet.routing_header.hop_index - 1,
