@@ -1,6 +1,11 @@
 use std::{collections::HashMap, time::Duration};
 
-use common::{create_channels, default_fragment, start_drone_thread, RECV_WAIT_TIME};
+use common::{
+    create_channels, default_fragment,
+    expect::{expect_event, expect_no_packet, expect_one_event, expect_one_packet, expect_packet},
+    packetbuilder::PacketBuilder,
+    start_drone_thread, RECV_WAIT_TIME,
+};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use log::warn;
 use null_pointer_drone::MyDrone;
@@ -16,6 +21,7 @@ mod common;
 /// 0 -> (1) -> 2
 /// but drone 1 has pdr of 1.0 so it gets dropped, and we expect:
 /// - a nack of this form: 1->(0)
+/// - a PacketSent() with the created nack to sim controller
 /// - a Dropped message to sim controller
 /// - nothing on drone2 receiver
 #[test]
@@ -32,56 +38,20 @@ fn expect_drop() {
     let my_drone = MyDrone::new(1, event_send, controller_recv, packet_recv, senders, 1.0);
     let _handle = start_drone_thread(my_drone);
 
-    let mut packet = Packet {
-        pack_type: PacketType::MsgFragment(default_fragment(4, 10)),
-        routing_header: SourceRoutingHeader {
-            hop_index: 1,
-            hops: vec![0, 1, 2, 3, 4],
-        },
-        session_id: 100,
-    };
+    let mut packet = PacketBuilder::new_fragment(vec![0, 1, 2]).build();
 
     // as if we're sending from drone 0
     if let Err(_e) = packet_send.send(packet.clone()) {
         panic!("error sending packet to drone")
     };
 
-    let expected = Packet {
-        pack_type: PacketType::Nack(Nack {
-            fragment_index: 4,
-            nack_type: NackType::Dropped,
-        }),
-        routing_header: SourceRoutingHeader {
-            hop_index: 1,
-            hops: vec![1, 0],
-        },
-        session_id: 100,
-    };
+    let expected = PacketBuilder::new_nack(vec![1, 0], NackType::Dropped).build();
 
-    match r0.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
-        Err(e) => {
-            panic!("error receiving packet: {}", e);
-        }
-        Ok(p2) => {
-            assert_eq!(p2, expected);
-        }
-    };
-    match r2.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
-        Err(_) => {}
-        Ok(p2) => {
-            panic!("no packet should arrive to drone 2, got packet {}", p2);
-        }
-    };
-    // TODO: check also that we receive the event PacketSent(Nack(NackType::Dropped)), at the
-    // moment the drone sends PacketDropped event first so this test still passes
-    match event_recv.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
-        Ok(e2) => {
-            packet.routing_header.increase_hop_index();
-            let expected = DroneEvent::PacketDropped(packet.clone());
-            assert_eq!(e2, expected);
-        }
-        Err(e) => {
-            panic!("error receiving packet: {}", e);
-        }
-    }
+    expect_one_packet(&r0, expected.clone());
+
+    expect_no_packet(&r2);
+
+    packet.routing_header.increase_hop_index();
+    expect_event(&event_recv, DroneEvent::PacketDropped(packet));
+    expect_one_event(&event_recv, DroneEvent::PacketSent(expected));
 }
