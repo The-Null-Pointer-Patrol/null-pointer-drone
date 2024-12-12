@@ -1,6 +1,7 @@
 use core::panic;
 use crossbeam_channel::{select_biased, Receiver, Sender};
 use rand::rngs::ThreadRng;
+use rand::seq::IndexedRandom;
 use rand::Rng;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -200,6 +201,12 @@ impl MyDrone {
             packet.routing_header.hops
         );
 
+        println!("{current_index}");
+        assert!(
+            current_index != 0,
+            "received packet with hop_index 0, which should be impossible"
+        );
+
         let current_hop = packet.routing_header.hops.get(current_index).unwrap();
         if *current_hop != self.id {
             self.make_and_send_nack(
@@ -242,16 +249,24 @@ impl MyDrone {
         let mut new_path_trace = flood_request.path_trace.clone();
         new_path_trace.push((self.id, NodeType::Drone));
 
-        let drone_has_no_other_neighbors = self
+        let neighbors_minus_sender: Vec<NodeId> = self
             .packet_send
             .iter()
             .filter(|(node_id, _channel)| **node_id != *received_from)
-            .count()
-            == 0;
+            .map(|(node_id, _channel)| node_id)
+            .copied()
+            .collect();
+
+        let drone_has_no_other_neighbors = neighbors_minus_sender.is_empty();
 
         if self.known_flood_ids.contains(&(flood_id, initiator_id)) || drone_has_no_other_neighbors
         {
-            log::info!("Received flood request with known ({flood_id}, {initiator_id}) or the drone has no other neighbors, sending back a flood response");
+            if drone_has_no_other_neighbors {
+                log::debug!("Drone has no other neighbors except for the sender, generating flood response...")
+            } else {
+                log::debug!("tuple (flood_id:{},initiator_id:{}) already seen, generating flood response...",flood_id,initiator_id)
+          }
+          
             let flood_response = PacketType::FloodResponse(FloodResponse {
                 flood_id,
                 path_trace: new_path_trace.clone(),
@@ -273,7 +288,10 @@ impl MyDrone {
             };
             self.send_packet(flood_response_packet);
         } else {
-            log::info!("Received a new flood request, forwarding it to every other neighbor...");
+            log::debug!(
+                "found neighbors(except sender): {:?}, forwarding flood request...",
+                neighbors_minus_sender
+            );
             self.known_flood_ids.insert((flood_id, initiator_id));
 
             let flood_request = FloodRequest {
@@ -283,15 +301,7 @@ impl MyDrone {
             };
             let packet_type = PacketType::FloodRequest(flood_request);
 
-            let next_hops_to_forward_packet_to: Vec<NodeId> = self
-                .packet_send
-                .iter()
-                .filter(|(node_id, _channel)| **node_id != *received_from)
-                .map(|(node_id, _channel)| node_id)
-                .copied()
-                .collect();
-
-            for next_hop in &next_hops_to_forward_packet_to {
+            for next_hop in &neighbors_minus_sender {
                 // even though the routing header is not used by the flooding protocol we need it
                 // here because:
                 // - send_packet uses it to know where to send the packet

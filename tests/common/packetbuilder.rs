@@ -1,6 +1,8 @@
 use wg_2024::{
     network::{NodeId, SourceRoutingHeader},
-    packet::{Ack, FloodRequest, FloodResponse, Fragment, Nack, NackType, Packet, PacketType},
+    packet::{
+        Ack, FloodRequest, FloodResponse, Fragment, Nack, NackType, NodeType, Packet, PacketType,
+    },
 };
 
 pub struct PacketBuilder {
@@ -61,24 +63,30 @@ impl PacketBuilder {
         )
     }
 
-    /// sets session_id to 0, hop_index to 1, creates a flood request with flood_id 0 empty
+    /// sets session_id to 0, hop_index to 0, creates a flood request with flood_id 0, given
     /// path trace, and initiator_id as hops[0]
-    pub fn new_floodreq(hops: Vec<NodeId>) -> PacketBuilder {
-        PacketBuilder::new(
-            PacketType::FloodRequest(FloodRequest {
+    pub fn new_floodreq(path_trace: Vec<(NodeId, NodeType)>) -> PacketBuilder {
+        PacketBuilder {
+            routing_header: SourceRoutingHeader {
+                hops: vec![],
+                hop_index: 0,
+            },
+            session_id: 0,
+            pack_type: PacketType::FloodRequest(FloodRequest {
                 flood_id: 0,
-                path_trace: vec![],
-                initiator_id: hops[0],
+                initiator_id: path_trace[0].0,
+                path_trace,
             }),
-            hops,
-        )
+        }
     }
 
-    pub fn hop_index(&mut self, hop: usize) {
+    pub fn hop_index(mut self, hop: usize) -> Self {
         self.routing_header.hop_index = hop;
+        self
     }
-    pub fn session_id(&mut self, sid: u64) {
+    pub fn session_id(mut self, sid: u64) -> Self {
         self.session_id = sid;
+        self
     }
     pub fn build(self) -> Packet {
         Packet {

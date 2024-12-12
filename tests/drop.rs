@@ -24,7 +24,7 @@ mod common;
 /// - a PacketSent() with the created nack to sim controller
 /// - a Dropped message to sim controller
 /// - nothing on drone2 receiver
-#[test]
+#[test_log::test]
 fn expect_drop() {
     let (event_send, event_recv, _controller_send, controller_recv, packet_send, packet_recv) =
         create_channels();
