@@ -194,6 +194,12 @@ impl MyDrone {
             packet.routing_header.hops
         );
 
+        println!("{current_index}");
+        assert!(
+            current_index != 0,
+            "received packet with hop_index 0, which should be impossible"
+        );
+
         let current_hop = packet.routing_header.hops.get(current_index).unwrap();
         if *current_hop != self.id {
             self.make_and_send_nack(
@@ -335,13 +341,9 @@ impl MyDrone {
             }
         } else {
             match &packet.pack_type {
-                PacketType::MsgFragment(_) => {
+                PacketType::MsgFragment(_) | PacketType::FloodRequest(_) => {
                     let idx = packet.routing_header.previous_hop().unwrap();
                     self.make_and_send_nack(&packet, idx as usize, NackType::ErrorInRouting(dest));
-                }
-                PacketType::FloodRequest(_) => {
-                    // do not send any NACK nor any other message if a FloodRequest cannot be sent
-                    // in the requested channel
                 }
                 _ => {
                     let event = DroneEvent::ControllerShortcut(packet);
