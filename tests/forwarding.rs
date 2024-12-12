@@ -1,195 +1,50 @@
 use std::{collections::HashMap, time::Duration};
 
-use common::{create_channels, default_fragment, start_drone_thread, RECV_WAIT_TIME};
+use common::expect::{expect_no_packet, expect_one_event, expect_one_packet, try_send_packet};
+use common::{
+    create_channels, default_fragment, packetbuilder::PacketBuilder, start_drone_thread,
+    RECV_WAIT_TIME,
+};
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use log::warn;
 use null_pointer_drone::MyDrone;
 use wg_2024::{
     controller::DroneEvent,
     drone::Drone,
-    network::SourceRoutingHeader,
-    packet::{Ack, FloodResponse, Nack, NackType, NodeType, Packet, PacketType},
+    packet::{NackType, Packet},
 };
-use wg_2024::controller::DroneCommand;
 
 mod common;
 
-#[test]
-fn forward_frag() {
-    let (my_drone, packet_send, packet_recv, event_recv, controller_to_drone) = make_forwarding_drone();
-    let _handle = start_drone_thread(my_drone);
+#[test_log::test]
+fn forward() {
+    let (event_send, event_recv, _command_send, command_recv, packet_send, packet_recv) =
+        create_channels();
 
-    let frag = default_fragment(0, 10);
-
-    let packet = Packet {
-        pack_type: PacketType::MsgFragment(frag),
-        routing_header: SourceRoutingHeader {
-            hop_index: 0,
-            hops: vec![0, 1, 2, 3, 4],
-        },
-        session_id: 100,
-    };
-    send_and_check_forward(packet_send, packet_recv, event_recv, packet);
-}
-
-#[test]
-fn forward_ack() {
-    let (my_drone, packet_send, packet_recv, event_recv, controller_to_drone) = make_forwarding_drone();
-    let _handle = start_drone_thread(my_drone);
-
-    let packet = Packet {
-        pack_type: PacketType::Ack(Ack { fragment_index: 12 }),
-        routing_header: SourceRoutingHeader {
-            hop_index: 0,
-            hops: vec![0, 1, 2, 3, 4],
-        },
-        session_id: 100,
-    };
-    send_and_check_forward(packet_send, packet_recv, event_recv, packet);
-}
-
-#[test]
-fn forward_flood_response() {
-    let (my_drone, packet_send, packet_recv, event_recv, controller_to_drone) = make_forwarding_drone();
-    let _handle = start_drone_thread(my_drone);
-
-    let packet = Packet {
-        pack_type: PacketType::FloodResponse(FloodResponse {
-            flood_id: 100,
-            path_trace: vec![(100, NodeType::Drone)],
-        }),
-        routing_header: SourceRoutingHeader {
-            hop_index: 1,
-            hops: vec![100, 0, 1],
-        },
-        session_id: 100,
-    };
-
-    send_and_check_forward(packet_send, packet_recv, event_recv, packet);
-}
-
-#[test]
-fn forward_nack() {
-    let (my_drone, packet_send, packet_recv, event_recv, controller_to_drone) = make_forwarding_drone();
-    let _handle = start_drone_thread(my_drone);
-
-    let p1 = Packet {
-        pack_type: PacketType::Nack(Nack {
-            fragment_index: 12,
-            nack_type: NackType::Dropped,
-        }),
-        routing_header: SourceRoutingHeader {
-            hop_index: 0,
-            hops: vec![0, 1, 2, 3, 4],
-        },
-        session_id: 100,
-    };
-    send_and_check_forward(
-        packet_send.clone(),
-        packet_recv.clone(),
-        event_recv.clone(),
-        p1,
-    );
-
-    let p2 = Packet {
-        pack_type: PacketType::Nack(Nack {
-            fragment_index: 12,
-            nack_type: NackType::ErrorInRouting(3),
-        }),
-        routing_header: SourceRoutingHeader {
-            hop_index: 0,
-            hops: vec![0, 1, 2, 3, 4],
-        },
-        session_id: 100,
-    };
-    send_and_check_forward(
-        packet_send.clone(),
-        packet_recv.clone(),
-        event_recv.clone(),
-        p2,
-    );
-
-    let p3 = Packet {
-        pack_type: PacketType::Nack(Nack {
-            fragment_index: 12,
-            nack_type: NackType::UnexpectedRecipient(3),
-        }),
-        routing_header: SourceRoutingHeader {
-            hop_index: 0,
-            hops: vec![0, 1, 2, 3, 4],
-        },
-        session_id: 100,
-    };
-    send_and_check_forward(
-        packet_send.clone(),
-        packet_recv.clone(),
-        event_recv.clone(),
-        p3,
-    );
-
-    let p4 = Packet {
-        pack_type: PacketType::Nack(Nack {
-            fragment_index: 12,
-            nack_type: NackType::DestinationIsDrone,
-        }),
-        routing_header: SourceRoutingHeader {
-            hop_index: 0,
-            hops: vec![0, 1, 2, 3, 4],
-        },
-        session_id: 100,
-    };
-    send_and_check_forward(packet_send, packet_recv, event_recv, p4);
-}
-
-fn make_forwarding_drone() -> (
-    MyDrone,
-    Sender<Packet>,
-    Receiver<Packet>,
-    Receiver<DroneEvent>,
-    Sender<DroneCommand>
-) {
-    let (controller_send, r1, send_drone_commands, controller_recv, packet_send, packet_recv) = create_channels();
+    let (s0, r0) = unbounded::<Packet>();
     let (s2, r2) = unbounded::<Packet>();
     let mut senders = HashMap::new();
-    senders.insert(1, s2);
-    let my_drone = MyDrone::new(
-        0,
-        controller_send,
-        controller_recv,
-        packet_recv,
-        senders,
-        0.0,
-    );
-    (my_drone, packet_send, r2, r1, send_drone_commands)
-}
-fn send_and_check_forward(
-    s: Sender<Packet>,
-    r: Receiver<Packet>,
-    er: Receiver<DroneEvent>,
-    mut p: Packet,
-) {
-    if let Err(_e) = s.send(p.clone()) {
-        panic!("error sending packet to drone")
-    };
+    senders.insert(0, s0);
+    senders.insert(2, s2);
 
-    match r.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
-        Err(e) => {
-            panic!("error receiving packet: {}", e);
-        }
-        Ok(p2) => {
-            p.routing_header.hop_index += 1;
-            // todo: enable IF PR gets approved
-            assert_eq!(p2, p);
-        }
-    };
+    let my_drone = MyDrone::new(1, event_send, command_recv, packet_recv, senders, 0.0);
+    let _handle = start_drone_thread(my_drone);
 
-    match er.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
-        Ok(e2) => {
-            let expected = DroneEvent::PacketSent(p);
-            assert_eq!(e2, expected);
-        }
-        Err(e) => {
-            panic!("error receiving packet: {}", e);
-        }
+    let hops = vec![0, 1, 2, 3, 4];
+
+    let p1 = PacketBuilder::new_nack(hops.clone(), NackType::Dropped).build();
+    let p2 = PacketBuilder::new_nack(hops.clone(), NackType::DestinationIsDrone).build();
+    let p3 = PacketBuilder::new_nack(hops.clone(), NackType::ErrorInRouting(14)).build();
+    let p4 = PacketBuilder::new_nack(hops.clone(), NackType::UnexpectedRecipient(34)).build();
+    let p5 = PacketBuilder::new_ack(hops.clone()).build();
+    let p6 = PacketBuilder::new_fragment(hops.clone()).build();
+    let p7 = PacketBuilder::new_floodresp(hops.clone()).build();
+
+    for mut p in [p1, p2, p3, p4, p5, p6, p7] {
+        try_send_packet(&packet_send, p.clone());
+
+        p.routing_header.hop_index += 1;
+        expect_one_packet(&r2, p.clone());
+        expect_no_packet(&r0);
+        expect_one_event(&event_recv, DroneEvent::PacketSent(p));
     }
 }
