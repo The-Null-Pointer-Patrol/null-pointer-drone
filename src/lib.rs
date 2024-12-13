@@ -265,8 +265,8 @@ impl MyDrone {
                 log::debug!("Drone has no other neighbors except for the sender, generating flood response...")
             } else {
                 log::debug!("tuple (flood_id:{},initiator_id:{}) already seen, generating flood response...",flood_id,initiator_id)
-          }
-          
+            }
+
             let flood_response = PacketType::FloodResponse(FloodResponse {
                 flood_id,
                 path_trace: new_path_trace.clone(),
@@ -332,7 +332,7 @@ impl MyDrone {
         let dest = packet
             .routing_header
             .current_hop()
-            .expect("next hop not found");
+            .expect("next hop not found: the internal function packet_send was passed a packet with no destination(its hop_index, which was incremented by 1 to point to dest, was out of bounds for hops)");
 
         if let Some(channel) = self.packet_send.get(&dest) {
             // packet drop logic
