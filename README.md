@@ -45,6 +45,8 @@ As seen in the flowchart previously, the drone ignores the contents of the routi
 ### Nacks
 When sending a Nack, that contains a packet, the packet inside will have its hop index pointing to where the drone would have sent that packet if it wasn't for the nack.
 
+# Panics explaination
+
 ## List of panics
 #### "The Sender<DroneCommand> end of the simulation controller channel unexpectedly got dropped");
  - There is no link anymore with the simulation controller
@@ -61,9 +63,6 @@ When sending a Nack, that contains a packet, the packet inside will have its hop
 #### "Cannot remove channel to {node_id}: it does not exist"
  - You try to remove a channel that already doesn't exist
 
-#### "not expecting a packet of type flood request"
- - Not suppose to be trigger, call of the `process_not_flood_request` function with a flood request
-
 #### "empty routing header for packet {packet}"
  - The packet pass in function `process_not_flood_request` as an empty source routing header
 
@@ -75,16 +74,9 @@ is out of bounds of the **Vec** of hops.
  - The packet received as an hope index of 0 in `process_not_flood_request`, this is impossible in normal situation.
 Maybe this packet was suppose to be a **flood request**
 
-#### "expecting a packet of type flood request"
- - Not suppose to be trigger, call of the `process_flood_request` function with a packet that is not a flood request
-
 #### "flood request has no path trace"
- - Maybe we should'nt keep this one but that indicate that another drone or server
-sent an flood request with an empty path trace. He should at least had himself to the path
-
-#### "next hop not found"
- - Trigger when the drone try to send a packet <send packet function> to the next hop but we can't find it.
-Maybe the next hop is not connected or he not exist
+ - that indicate that another drone or server sent an flood request with an empty path trace.
+ He should at least had himself to the path
 
 #### "Cannot send packet {} into channel {channel:?}. Error: {error:?}",&packet
  - return the error of the `send` function of the crossbeam channel 
@@ -96,3 +88,6 @@ an event to the simulation controller
 #### "original recipient index out of bounds"
  - when trying to return a **Nack**, the sender of the problematic message cannot be found
 in the `hops_index` of the routing header list
+
+## Other panics
+if you encouter any other panic from our drone, please contact us on our telegram group or open an issue
