@@ -3,7 +3,7 @@ The official repository for the drone of the group **null-pointer-patrol**.
 # Usage
 to use our drone, simply add to your `Cargo.toml`, under `[dependencies]`:
 ``` rust
-null_pointer_drone = { git = "https://github.com/The-Null-Pointer-Patrol/null-pointer-drone.git"}
+null-pointer-drone = { git = "https://github.com/The-Null-Pointer-Patrol/null-pointer-drone.git"}
 ```
 Once you've done that you can declare :
 ``` rust 
