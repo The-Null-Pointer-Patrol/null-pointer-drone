@@ -238,8 +238,6 @@ impl MyDrone {
             panic!("expecting a packet of type flood request")
         };
 
-        // TODO: decide if it is appropriate to panic or if we can just return from this function,
-        // dropping the flood request (without even signaling it?)
         let Some((received_from, _node_type)) = flood_request.path_trace.last() else {
             panic!("flood request has no path trace")
         };
