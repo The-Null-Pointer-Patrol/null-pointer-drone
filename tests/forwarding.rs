@@ -1,11 +1,12 @@
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
-use common::expect::{expect_no_packet, expect_one_event, expect_one_packet, try_send_packet};
 use common::{
-    create_channels, default_fragment, packetbuilder::PacketBuilder, start_drone_thread,
-    RECV_WAIT_TIME,
+    create_channels,
+    expect::{expect_no_packet, expect_one_event, expect_one_packet, try_send_packet},
+    packetbuilder::PacketBuilder,
+    start_drone_thread,
 };
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::unbounded;
 use null_pointer_drone::MyDrone;
 use wg_2024::{
     controller::DroneEvent,

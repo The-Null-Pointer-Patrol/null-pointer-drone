@@ -31,7 +31,7 @@ fn shortcut() {
     senders.insert(2, s2);
 
     let my_drone = MyDrone::new(1, event_send, command_recv, packet_recv, senders, 1.0);
-    let handle = start_drone_thread(my_drone);
+    let _handle = start_drone_thread(my_drone);
 
     // simulate crash
     match command_send.send(DroneCommand::RemoveSender(2)) {
