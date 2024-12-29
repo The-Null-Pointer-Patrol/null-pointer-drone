@@ -159,7 +159,8 @@ fn flood_request_id_seen_already() {
     expect_one_event(&er, DroneEvent::PacketSent(expected));
 
     // -------------------------------------------
-    // sending request that will be transformed into a response due to flood id already received
+    // sending request that will be transformed into a response because drone already received
+    // flood id
     // -------------------------------------------
     try_send_packet(&ps, packet.clone());
 

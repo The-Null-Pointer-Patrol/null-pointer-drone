@@ -1,18 +1,13 @@
-use common::expect::{
-    expect_event, expect_no_event, expect_no_packet, expect_one_event, expect_one_packet,
-    expect_packet, try_send_packet,
-};
+use common::expect::{expect_no_packet, expect_one_event, expect_packet, try_send_packet};
 use common::packetbuilder::PacketBuilder;
-use common::{create_channels, default_fragment, start_drone_thread, RECV_WAIT_TIME};
-use crossbeam_channel::{unbounded, Receiver, Sender};
-use log::warn;
+use common::{create_channels, start_drone_thread};
+use crossbeam_channel::unbounded;
 use null_pointer_drone::MyDrone;
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
+use wg_2024::packet::{NackType, Packet};
 use wg_2024::{
     controller::{DroneCommand, DroneEvent},
     drone::Drone,
-    network::SourceRoutingHeader,
-    packet::{Ack, FloodResponse, Nack, NackType, NodeType, Packet, PacketType},
 };
 mod common;
 
