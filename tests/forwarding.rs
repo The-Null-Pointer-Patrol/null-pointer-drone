@@ -38,7 +38,7 @@ fn forward() {
     let p4 = PacketBuilder::new_nack(hops.clone(), NackType::UnexpectedRecipient(34)).build();
     let p5 = PacketBuilder::new_ack(hops.clone()).build();
     let p6 = PacketBuilder::new_fragment(hops.clone()).build();
-    let p7 = PacketBuilder::new_floodresp(hops.clone()).build();
+    let p7 = PacketBuilder::new_floodresp(hops.clone(), vec![]).build();
 
     for mut p in [p1, p2, p3, p4, p5, p6, p7] {
         try_send_packet(&packet_send, p.clone());

@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     thread::{self, spawn, JoinHandle},
 };
-pub const RECV_WAIT_TIME: u64 = 200;
+pub const RECV_WAIT_TIME: u64 = 40;
 use crossbeam_channel::{Receiver, Sender};
 use log::warn;
 use null_pointer_drone::MyDrone;

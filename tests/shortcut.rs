@@ -44,7 +44,7 @@ fn shortcut() {
     // checks for packets that should be shortcutted
     // --------------------------------------------------------------------------------------------
     let hops = vec![0, 1, 2];
-    let p1 = PacketBuilder::new_floodresp(hops.clone()).build();
+    let p1 = PacketBuilder::new_floodresp(hops.clone(), vec![]).build();
     let p2 = PacketBuilder::new_nack(hops.clone(), NackType::Dropped).build();
     let p3 = PacketBuilder::new_ack(hops.clone()).build();
 

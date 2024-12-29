@@ -5,10 +5,11 @@ use wg_2024::{
     },
 };
 
+#[derive(Clone)]
 pub struct PacketBuilder {
-    pub routing_header: SourceRoutingHeader,
-    pub session_id: u64,
-    pub pack_type: PacketType,
+    routing_header: SourceRoutingHeader,
+    session_id: u64,
+    pack_type: PacketType,
 }
 
 impl PacketBuilder {
@@ -51,13 +52,13 @@ impl PacketBuilder {
         PacketBuilder::new(PacketType::Ack(Ack { fragment_index: 0 }), hops)
     }
 
-    /// sets session_id to 0, hop_index to 1, creates a flood response with flood_id 0 and empty
+    /// sets session_id to 0, hop_index to 1, creates a flood response with flood_id 0 and given
     /// path trace
-    pub fn new_floodresp(hops: Vec<NodeId>) -> PacketBuilder {
+    pub fn new_floodresp(hops: Vec<NodeId>, path_trace: Vec<(NodeId, NodeType)>) -> PacketBuilder {
         PacketBuilder::new(
             PacketType::FloodResponse(FloodResponse {
                 flood_id: 0,
-                path_trace: vec![],
+                path_trace,
             }),
             hops,
         )
@@ -82,6 +83,10 @@ impl PacketBuilder {
 
     pub fn hop_index(mut self, hop: usize) -> Self {
         self.routing_header.hop_index = hop;
+        self
+    }
+    pub fn hops(mut self, hops: Vec<u8>) -> Self {
+        self.routing_header.hops = hops;
         self
     }
     pub fn session_id(mut self, sid: u64) -> Self {
