@@ -51,7 +51,6 @@ fn expect_drop() {
 
     expect_no_packet(&r2);
 
-    packet.routing_header.increase_hop_index();
     expect_event(&event_recv, DroneEvent::PacketDropped(packet));
     expect_one_event(&event_recv, DroneEvent::PacketSent(expected));
 }

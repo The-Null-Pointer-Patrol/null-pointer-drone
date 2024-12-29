@@ -1,7 +1,6 @@
 use core::panic;
 use crossbeam_channel::{select_biased, Receiver, Sender};
 use rand::rngs::ThreadRng;
-use rand::seq::IndexedRandom;
 use rand::Rng;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -260,9 +259,9 @@ impl MyDrone {
         if self.known_flood_ids.contains(&(flood_id, initiator_id)) || drone_has_no_other_neighbors
         {
             if drone_has_no_other_neighbors {
-                log::debug!("Drone has no other neighbors except for the sender, generating flood response...")
+                log::debug!("Drone has no other neighbors except for the sender, generating flood response...");
             } else {
-                log::debug!("tuple (flood_id:{},initiator_id:{}) already seen, generating flood response...",flood_id,initiator_id)
+                log::debug!("tuple (flood_id:{},initiator_id:{}) already seen, generating flood response...",flood_id,initiator_id);
             }
 
             let flood_response = PacketType::FloodResponse(FloodResponse {
@@ -325,7 +324,7 @@ impl MyDrone {
 impl MyDrone {
     /// takes a packet whose routing header hop index already points to the intended destination
     /// sends that packet through the `channel` corresponding to the current hop index, panics if there is a `SendError`
-    fn send_packet(&self, packet: Packet) {
+    fn send_packet(&self, mut packet: Packet) {
         // use hop_idx to get id of destination:
         let dest = packet
             .routing_header
@@ -335,8 +334,15 @@ impl MyDrone {
         if let Some(channel) = self.packet_send.get(&dest) {
             // packet drop logic
             if matches!(packet.pack_type, PacketType::MsgFragment(_))
-                && self.roll_a_dice_and_decide_maybe_drop_packet(&packet)
+                && self.roll_a_dice_and_decide_maybe_drop_packet()
             {
+                log::info!("Dropping packet due to drone's pdr");
+                packet.routing_header.hop_index -= 1;
+                self.make_and_send_nack(
+                    &packet,
+                    packet.routing_header.hop_index,
+                    NackType::Dropped,
+                );
                 return;
             }
 
@@ -380,19 +386,9 @@ impl MyDrone {
     /// This method handles the logic of the packet dropping.
     /// It decides to drop a packet or not and, if it does, it creates and sends the related
     /// NACK packet
-    fn roll_a_dice_and_decide_maybe_drop_packet(&self, packet: &Packet) -> bool {
+    fn roll_a_dice_and_decide_maybe_drop_packet(&self) -> bool {
         let random_number: f32 = generate_random_value_in_range(0.0..=1.0);
-
-        if random_number < self.pdr {
-            log::info!("Dropping packet due to drone's pdr");
-            self.make_and_send_nack(
-                packet,
-                packet.routing_header.hop_index - 1,
-                NackType::Dropped,
-            );
-            return true;
-        }
-        false
+        random_number < self.pdr
     }
 
     /// sends an event to the simulation controller
