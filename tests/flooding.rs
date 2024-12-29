@@ -122,8 +122,6 @@ fn flood_request_no_neighbors() {
     expect_one_event(&er, DroneEvent::PacketSent(expected));
 }
 
-// TODO: flood_request_id_seen_already
-
 /// topology: 0<->1<->2
 /// send a flood request to (1) with path trace containing just node 0
 /// confirm that it gets forwarded to (2)
