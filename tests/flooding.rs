@@ -17,7 +17,7 @@ use wg_2024::{
 
 mod common;
 
-#[test]
+#[test_log::test]
 fn flood_request_propagation() {
     let (event_send, event_recv, _controller_send, controller_recv, packet_send, packet_recv) =
         create_channels();
@@ -97,7 +97,7 @@ fn flood_request_propagation() {
 /// topology: 0<->1
 /// send a flood request with path trace containing just node 0
 /// drone #1 is expected to create a floodresponse as it has no other neighbors
-#[test]
+#[test_log::test]
 fn flood_request_no_neighbors() {
     let (es, er, _cs, cr, ps, pr) = create_channels();
 
@@ -123,11 +123,9 @@ fn flood_request_no_neighbors() {
 }
 
 /// topology: 0<->1<->2
-/// send a flood request to (1) with path trace containing just node 0
-/// confirm that it gets forwarded to (2)
-/// send flood request to (1) with path trace containing just node 0 and same flood id as before
-/// drone #1 is expected to create a floodresponse as it has already seen the flood request
-#[test]
+/// sends 3 flood request with tuples of (floodid,initiatorid) that do not match and then a last one
+/// that matches and makes a flood response
+#[test_log::test]
 fn flood_request_id_seen_already() {
     let (es, er, _cs, cr, ps, pr) = create_channels();
 
@@ -142,6 +140,7 @@ fn flood_request_id_seen_already() {
 
     // -------------------------------------------
     // sending request that will be forwarded
+    // iid 0 fid 1
     // -------------------------------------------
     let packet = PacketBuilder::new_floodreq_with_opts(vec![(0, NodeType::Client)], 1).build();
 
@@ -158,7 +157,8 @@ fn flood_request_id_seen_already() {
     expect_one_event(&er, DroneEvent::PacketSent(expected));
 
     // -------------------------------------------
-    // sending request  with different flood id that will be forwarded
+    // sending request  with different flood id but same initiator id that will be forwarded
+    // iid 0 fid 0
     // -------------------------------------------
     let packet = PacketBuilder::new_floodreq(vec![(0, NodeType::Client)]).build();
 
@@ -174,9 +174,29 @@ fn flood_request_id_seen_already() {
     expect_one_event(&er, DroneEvent::PacketSent(expected));
 
     // -------------------------------------------
+    // sending request  with different initiator id but same flood id that will be forwarded
+    // iid 4 fid 0
+    // -------------------------------------------
+    let packet = PacketBuilder::new_floodreq(vec![(2, NodeType::Client)]).build();
+
+    try_send_packet(&ps, packet.clone());
+
+    let expected = PacketBuilder::new_floodreq(vec![(2, NodeType::Client), (1, NodeType::Drone)])
+        .hop_index(1)
+        .hops(vec![1, 0])
+        .build();
+
+    expect_no_packet(&r2);
+    expect_one_packet(&r0, expected.clone());
+    expect_one_event(&er, DroneEvent::PacketSent(expected));
+
+    // -------------------------------------------
     // sending request that will be transformed into a response because drone already received
     // flood id
+    // iid 0 fid 0
     // -------------------------------------------
+    let packet = PacketBuilder::new_floodreq(vec![(0, NodeType::Client)]).build();
+
     try_send_packet(&ps, packet.clone());
 
     let expected = PacketBuilder::new_floodresp(

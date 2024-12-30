@@ -200,7 +200,6 @@ impl MyDrone {
             packet.routing_header.hops
         );
 
-        println!("{current_index}");
         assert!(
             current_index != 0,
             "received packet with hop_index 0, which should be impossible"
