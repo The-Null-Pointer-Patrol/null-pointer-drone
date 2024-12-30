@@ -1,5 +1,10 @@
+use std::thread::JoinHandle;
+
 use crossbeam_channel::{Receiver, Sender};
-use wg_2024::{controller::DroneEvent, packet::Packet};
+use wg_2024::{
+    controller::{DroneCommand, DroneEvent},
+    packet::Packet,
+};
 
 use super::RECV_WAIT_TIME;
 
@@ -7,6 +12,13 @@ use super::RECV_WAIT_TIME;
 pub fn try_send_packet(send: &Sender<Packet>, packet: Packet) {
     if let Err(e) = send.send(packet) {
         panic!("error sending packet to drone: {e}")
+    };
+}
+
+// tries to send given command and panics if unsuccesful
+pub fn try_send_command(send: &Sender<DroneCommand>, command: DroneCommand) {
+    if let Err(e) = send.send(command) {
+        panic!("error sending command to drone: {e}")
     };
 }
 
@@ -77,4 +89,23 @@ pub fn expect_no_event(rcv: &Receiver<DroneEvent>) {
             panic!("not expecting a second event, got: {:?}", got);
         }
     };
+}
+
+pub fn expect_panic<T>(handle: JoinHandle<T>, message: &str) {
+    // check that the drone thread panicked with the correct error message
+    match handle.join() {
+        Ok(_) => {
+            panic!("Drone did not panic when sending packet with hop_index 0")
+        }
+        Err(err) => {
+            let msg = match err.downcast_ref::<&'static str>() {
+                Some(s) => *s,
+                None => match err.downcast_ref::<String>() {
+                    Some(s) => &s[..],
+                    None => panic!("could not extract error message from joined thread"),
+                },
+            };
+            assert_eq!(msg, message);
+        }
+    }
 }
