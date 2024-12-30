@@ -66,7 +66,10 @@ impl PacketBuilder {
 
     /// sets session_id to 0, hop_index to 0, creates a flood request with flood_id 0, given
     /// path trace, and initiator_id as hops[0]
-    pub fn new_floodreq(path_trace: Vec<(NodeId, NodeType)>) -> PacketBuilder {
+    pub fn new_floodreq_with_opts(
+        path_trace: Vec<(NodeId, NodeType)>,
+        flood_id: u64,
+    ) -> PacketBuilder {
         PacketBuilder {
             routing_header: SourceRoutingHeader {
                 hops: vec![],
@@ -74,11 +77,17 @@ impl PacketBuilder {
             },
             session_id: 0,
             pack_type: PacketType::FloodRequest(FloodRequest {
-                flood_id: 0,
+                flood_id,
                 initiator_id: path_trace[0].0,
                 path_trace,
             }),
         }
+    }
+
+    /// sets session_id to 0, hop_index to 0, creates a flood request with flood_id 0, given
+    /// path trace, and initiator_id as hops[0]
+    pub fn new_floodreq(path_trace: Vec<(NodeId, NodeType)>) -> PacketBuilder {
+        PacketBuilder::new_floodreq_with_opts(path_trace, 0)
     }
 
     pub fn hop_index(mut self, hop: usize) -> Self {

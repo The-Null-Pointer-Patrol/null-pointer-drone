@@ -143,6 +143,23 @@ fn flood_request_id_seen_already() {
     // -------------------------------------------
     // sending request that will be forwarded
     // -------------------------------------------
+    let packet = PacketBuilder::new_floodreq_with_opts(vec![(0, NodeType::Client)], 1).build();
+
+    try_send_packet(&ps, packet.clone());
+
+    let expected =
+        PacketBuilder::new_floodreq_with_opts(vec![(0, NodeType::Client), (1, NodeType::Drone)], 1)
+            .hop_index(1)
+            .hops(vec![1, 2])
+            .build();
+
+    expect_no_packet(&r0);
+    expect_one_packet(&r2, expected.clone());
+    expect_one_event(&er, DroneEvent::PacketSent(expected));
+
+    // -------------------------------------------
+    // sending request  with different flood id that will be forwarded
+    // -------------------------------------------
     let packet = PacketBuilder::new_floodreq(vec![(0, NodeType::Client)]).build();
 
     try_send_packet(&ps, packet.clone());
