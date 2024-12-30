@@ -8,8 +8,7 @@ use std::{collections::HashMap, thread};
 use wg_2024::{
     controller::{DroneCommand, DroneEvent},
     drone::Drone,
-    network::SourceRoutingHeader,
-    packet::{Fragment, Nack, NackType, Packet, PacketType},
+    packet::{NackType, Packet},
 };
 mod common;
 
