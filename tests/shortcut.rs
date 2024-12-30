@@ -1,18 +1,13 @@
-use common::expect::{
-    expect_event, expect_no_event, expect_no_packet, expect_one_event, expect_one_packet,
-    expect_packet, try_send_packet,
-};
+use common::expect::{expect_no_packet, expect_one_event, expect_packet, try_send_packet};
 use common::packetbuilder::PacketBuilder;
-use common::{create_channels, default_fragment, start_drone_thread, RECV_WAIT_TIME};
-use crossbeam_channel::{unbounded, Receiver, Sender};
-use log::warn;
+use common::{create_channels, start_drone_thread};
+use crossbeam_channel::unbounded;
 use null_pointer_drone::MyDrone;
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
+use wg_2024::packet::{NackType, Packet};
 use wg_2024::{
     controller::{DroneCommand, DroneEvent},
     drone::Drone,
-    network::SourceRoutingHeader,
-    packet::{Ack, FloodResponse, Nack, NackType, NodeType, Packet, PacketType},
 };
 mod common;
 
@@ -31,7 +26,7 @@ fn shortcut() {
     senders.insert(2, s2);
 
     let my_drone = MyDrone::new(1, event_send, command_recv, packet_recv, senders, 1.0);
-    let handle = start_drone_thread(my_drone);
+    let _handle = start_drone_thread(my_drone);
 
     // simulate crash
     match command_send.send(DroneCommand::RemoveSender(2)) {
@@ -44,7 +39,7 @@ fn shortcut() {
     // checks for packets that should be shortcutted
     // --------------------------------------------------------------------------------------------
     let hops = vec![0, 1, 2];
-    let p1 = PacketBuilder::new_floodresp(hops.clone()).build();
+    let p1 = PacketBuilder::new_floodresp(hops.clone(), vec![]).build();
     let p2 = PacketBuilder::new_nack(hops.clone(), NackType::Dropped).build();
     let p3 = PacketBuilder::new_ack(hops.clone()).build();
 

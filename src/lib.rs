@@ -106,7 +106,7 @@ impl Drone for MyDrone {
                         Err(_err) => {
                              match &self.state {
                                  State::Working => {
-                                     panic!("There is no connected sender to the drone's receiver channel and no DroneCommand::Crash has been received")
+                                     panic!("There is no connected sender to the drone's packet receiver channel and no DroneCommand::Crash has been received")
                                  },
                                  State::Crashing => {
                                     log::info!("Drone is finally crashing, no more packets will be processed");
@@ -175,17 +175,16 @@ impl MyDrone {
 impl MyDrone {
     pub fn process_packet(&mut self, packet: Packet) {
         match packet.pack_type {
-            // flood requests do not care about source routing header so there is another logic for
-            // them
-            PacketType::FloodRequest(_) => self.process_flood_request(packet),
+            PacketType::FloodRequest(flood_request) => {
+                self.process_flood_request(flood_request, packet.session_id)
+            }
             _ => self.process_not_flood_request(packet),
         }
     }
 
     fn process_not_flood_request(&mut self, mut packet: Packet) {
-        if matches!(packet.pack_type, PacketType::FloodRequest(_)) {
-            panic!("not expecting a packet of type flood request")
-        }
+        // you never know what could happen
+        debug_assert!(!matches!(packet.pack_type, PacketType::FloodRequest(_)));
 
         let current_index = packet.routing_header.hop_index;
 
@@ -200,7 +199,6 @@ impl MyDrone {
             packet.routing_header.hops
         );
 
-        println!("{current_index}");
         assert!(
             current_index != 0,
             "received packet with hop_index 0, which should be impossible"
@@ -232,11 +230,7 @@ impl MyDrone {
         self.send_packet(packet);
     }
 
-    fn process_flood_request(&mut self, packet: Packet) {
-        let PacketType::FloodRequest(flood_request) = packet.pack_type else {
-            panic!("expecting a packet of type flood request")
-        };
-
+    fn process_flood_request(&mut self, flood_request: FloodRequest, session_id: u64) {
         let Some((received_from, _node_type)) = flood_request.path_trace.last() else {
             panic!("flood request has no path trace")
         };
@@ -281,7 +275,7 @@ impl MyDrone {
             let flood_response_packet = Packet {
                 pack_type: flood_response,
                 routing_header: SourceRoutingHeader { hop_index: 1, hops },
-                session_id: packet.session_id,
+                session_id,
             };
             self.send_packet(flood_response_packet);
         } else {
@@ -311,7 +305,7 @@ impl MyDrone {
                 let packet = Packet {
                     pack_type: packet_type.clone(),
                     routing_header,
-                    session_id: packet.session_id,
+                    session_id,
                 };
 
                 self.send_packet(packet);
@@ -427,7 +421,7 @@ impl MyDrone {
         original_recipient_idx: usize,
         nack_type: NackType,
     ) {
-        assert!(
+        debug_assert!(
             original_packet
                 .routing_header
                 .hops
