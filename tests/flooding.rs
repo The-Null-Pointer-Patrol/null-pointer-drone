@@ -118,7 +118,7 @@ fn flood_request_no_neighbors() {
     .build();
 
     expect_one_packet(&r0, &expected);
-    expect_one_event(&er, DroneEvent::PacketSent(expected));
+    expect_one_event(&er, &DroneEvent::PacketSent(expected));
 }
 
 /// topology: 0<->1<->2
@@ -153,7 +153,7 @@ fn flood_request_id_seen_already() {
 
     expect_no_packet(&r0);
     expect_one_packet(&r2, &expected);
-    expect_one_event(&er, DroneEvent::PacketSent(expected));
+    expect_one_event(&er, &DroneEvent::PacketSent(expected));
 
     // -------------------------------------------
     // sending request  with different flood id but same initiator id that will be forwarded
@@ -170,7 +170,7 @@ fn flood_request_id_seen_already() {
 
     expect_no_packet(&r0);
     expect_one_packet(&r2, &expected);
-    expect_one_event(&er, DroneEvent::PacketSent(expected));
+    expect_one_event(&er, &DroneEvent::PacketSent(expected));
 
     // -------------------------------------------
     // sending request  with different initiator id but same flood id that will be forwarded
@@ -187,7 +187,7 @@ fn flood_request_id_seen_already() {
 
     expect_no_packet(&r2);
     expect_one_packet(&r0, &expected);
-    expect_one_event(&er, DroneEvent::PacketSent(expected));
+    expect_one_event(&er, &DroneEvent::PacketSent(expected));
 
     // -------------------------------------------
     // sending request that will be transformed into a response because drone already received
@@ -206,5 +206,5 @@ fn flood_request_id_seen_already() {
 
     expect_no_packet(&r2);
     expect_one_packet(&r0, &expected);
-    expect_one_event(&er, DroneEvent::PacketSent(expected));
+    expect_one_event(&er, &DroneEvent::PacketSent(expected));
 }

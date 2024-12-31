@@ -51,5 +51,5 @@ fn expect_drop() {
     expect_no_packet(&r2);
 
     expect_event(&event_recv, &DroneEvent::PacketDropped(packet));
-    expect_one_event(&event_recv, &DroneEvent::PacketSent(&expected));
+    expect_one_event(&event_recv, &DroneEvent::PacketSent(expected));
 }
