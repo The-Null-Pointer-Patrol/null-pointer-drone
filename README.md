@@ -46,4 +46,4 @@ As seen in the flowchart previously, the drone ignores the contents of the routi
 When sending a Nack, that contains a packet, the packet inside will have its hop index pointing to where the drone would have sent that packet if it wasn't for the nack.
 
 # Panics
-
+See the documentation of the 'new()' function of the drone
