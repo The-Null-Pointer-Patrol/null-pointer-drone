@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Install Rust Nightly
-      uses: actions-rs/toolchain@v1
+      uses: actions-rs/toolchain@v1 , taiki-e/install-action@cargo-llvm-cov
       with:
         toolchain: nightly
 
