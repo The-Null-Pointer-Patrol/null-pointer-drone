@@ -138,5 +138,5 @@ fn nack_when_there_are_no_neighbours() {
 
     let expected = PacketBuilder::new_nack(vec![2, 1, 0], NackType::ErrorInRouting(3)).build();
 
-    expect_one_packet(&neighbour_receive_1, expected);
+    expect_one_packet(&neighbour_receive_1,&expected);
 }

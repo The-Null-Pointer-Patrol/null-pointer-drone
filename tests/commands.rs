@@ -44,10 +44,10 @@ fn removesender() {
     let expected = PacketBuilder::new_fragment(hops.clone())
         .hop_index(2)
         .build();
-    expect_one_packet(&r2, expected.clone());
+    expect_one_packet(&r2, &expected);
     expect_no_packet(&r0);
     let expected = DroneEvent::PacketSent(expected);
-    expect_one_event(&event_recv, expected);
+    expect_one_event(&event_recv,&expected);
 
     // remove sender
     match command_send.send(DroneCommand::RemoveSender(2)) {
@@ -59,9 +59,9 @@ fn removesender() {
     // check drone behaves as expected when sender is removed
     try_send_packet(&packet_send, p.clone());
     let expected = PacketBuilder::new_nack(vec![1, 0], NackType::ErrorInRouting(2)).build();
-    expect_packet(&r0, expected.clone());
+    expect_packet(&r0, &expected);
     let expected = DroneEvent::PacketSent(expected);
-    expect_one_event(&event_recv, expected);
+    expect_one_event(&event_recv,&expected);
 }
 
 /// topology: 0-1-2
@@ -87,9 +87,9 @@ fn addsender() {
     // check drone gives nack before adding
     try_send_packet(&packet_send, p.clone());
     let expected = PacketBuilder::new_nack(vec![1, 0], NackType::ErrorInRouting(2)).build();
-    expect_packet(&r0, expected.clone());
+    expect_packet(&r0, &expected);
     let expected = DroneEvent::PacketSent(expected);
-    expect_one_event(&event_recv, expected);
+    expect_one_event(&event_recv, &expected);
 
     // add sender
     match command_send.send(DroneCommand::AddSender(2, s2)) {
@@ -102,10 +102,10 @@ fn addsender() {
     let expected = PacketBuilder::new_fragment(hops.clone())
         .hop_index(2)
         .build();
-    expect_one_packet(&r2, expected.clone());
+    expect_one_packet(&r2, &expected);
     expect_no_packet(&r0);
     let expected = DroneEvent::PacketSent(expected);
-    expect_one_event(&event_recv, expected);
+    expect_one_event(&event_recv, &expected);
 
     // change sender (shadows previous senders by creating another 2)
     let (s2, r2) = unbounded::<Packet>();
@@ -119,10 +119,10 @@ fn addsender() {
     let expected = PacketBuilder::new_fragment(hops.clone())
         .hop_index(2)
         .build();
-    expect_one_packet(&r2, expected.clone());
+    expect_one_packet(&r2, &expected);
     expect_no_packet(&r0);
     let expected = DroneEvent::PacketSent(expected);
-    expect_one_event(&event_recv, expected);
+    expect_one_event(&event_recv, &expected);
 }
 
 /// topology: 0-1 2
@@ -151,7 +151,7 @@ fn changepdr() {
     let expected = PacketBuilder::new_fragment(hops.clone())
         .hop_index(2)
         .build();
-    expect_one_packet(&r2, expected.clone());
+    expect_one_packet(&r2, &expected);
     expect_no_packet(&r0);
 
     // set pdr to 1.0
@@ -160,7 +160,7 @@ fn changepdr() {
     // check drone gives nack
     try_send_packet(&packet_send, p.clone());
     let expected = PacketBuilder::new_nack(vec![1, 0], NackType::Dropped).build();
-    expect_packet(&r0, expected.clone());
+    expect_packet(&r0, &expected);
     expect_no_packet(&r2);
 
     // set pdr to 0.0
@@ -171,7 +171,7 @@ fn changepdr() {
     let expected = PacketBuilder::new_fragment(hops.clone())
         .hop_index(2)
         .build();
-    expect_one_packet(&r2, expected.clone());
+    expect_one_packet(&r2, &expected);
     expect_no_packet(&r0);
 }
 
@@ -203,10 +203,10 @@ fn crash() {
     let expected = PacketBuilder::new_fragment(hops.clone())
         .hop_index(2)
         .build();
-    expect_one_packet(&r2, expected.clone());
+    expect_one_packet(&r2, &expected);
     expect_no_packet(&r0);
     let expected = DroneEvent::PacketSent(expected);
-    expect_one_event(&event_recv, expected);
+    expect_one_event(&event_recv, &expected);
 
     // send crash command
     match command_send.send(DroneCommand::Crash) {
@@ -219,10 +219,10 @@ fn crash() {
     let expected = PacketBuilder::new_fragment(hops.clone())
         .hop_index(2)
         .build();
-    expect_one_packet(&r2, expected.clone());
+    expect_one_packet(&r2, &expected);
     expect_no_packet(&r0);
     let expected = DroneEvent::PacketSent(expected);
-    expect_one_event(&event_recv, expected);
+    expect_one_event(&event_recv, &expected);
 
     // drop all packet senders for the drone
     drop(packet_send);

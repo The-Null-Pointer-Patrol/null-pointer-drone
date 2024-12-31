@@ -23,7 +23,7 @@ pub fn try_send_command(send: &Sender<DroneCommand>, command: DroneCommand) {
 }
 
 // checks that the only packet that arrives is the expected one, panics in all other cases
-pub fn expect_one_packet(rcv: &Receiver<Packet>, expected: Packet) {
+pub fn expect_one_packet(rcv: &Receiver<Packet>, expected: &Packet) {
     expect_packet(rcv, expected);
     match rcv.recv_timeout(std::time::Duration::from_millis(RECV_WAIT_TIME)) {
         Err(_) => {}
@@ -34,13 +34,13 @@ pub fn expect_one_packet(rcv: &Receiver<Packet>, expected: Packet) {
 }
 
 /// panics if there is an error in the channel or if the packet is not the expected one
-pub fn expect_packet(rcv: &Receiver<Packet>, expected: Packet) {
+pub fn expect_packet(rcv: &Receiver<Packet>, expected: &Packet) {
     match rcv.recv_timeout(std::time::Duration::from_millis(RECV_WAIT_TIME)) {
         Err(e) => {
             panic!("error receiving packet: {e}");
         }
         Ok(got) => {
-            assert_eq!(got, expected);
+            assert_eq!(&got, expected);
         }
     };
 }
@@ -59,7 +59,7 @@ pub fn expect_no_packet(rcv: &Receiver<Packet>) {
 /// - if there is an error in the channel
 /// - if the event is not the expected one
 /// - if there is more than one event
-pub fn expect_one_event(rcv: &Receiver<DroneEvent>, expected: DroneEvent) {
+pub fn expect_one_event(rcv: &Receiver<DroneEvent>, expected: &DroneEvent) {
     expect_event(rcv, expected);
     match rcv.recv_timeout(std::time::Duration::from_millis(RECV_WAIT_TIME)) {
         Err(_) => {}
@@ -70,13 +70,13 @@ pub fn expect_one_event(rcv: &Receiver<DroneEvent>, expected: DroneEvent) {
 }
 
 /// panics if there is an error in the channel or if the event is not the expected one
-pub fn expect_event(rcv: &Receiver<DroneEvent>, expected: DroneEvent) {
+pub fn expect_event(rcv: &Receiver<DroneEvent>, expected: &DroneEvent) {
     match rcv.recv_timeout(std::time::Duration::from_millis(RECV_WAIT_TIME)) {
         Err(e) => {
             panic!("error receiving event: {e}");
         }
         Ok(got) => {
-            assert_eq!(got, expected);
+            assert_eq!(&got, expected);
         }
     };
 }

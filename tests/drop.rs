@@ -46,10 +46,10 @@ fn expect_drop() {
 
     let expected = PacketBuilder::new_nack(vec![1, 0], NackType::Dropped).build();
 
-    expect_one_packet(&r0, expected.clone());
+    expect_one_packet(&r0, &expected);
 
     expect_no_packet(&r2);
 
-    expect_event(&event_recv, DroneEvent::PacketDropped(packet));
-    expect_one_event(&event_recv, DroneEvent::PacketSent(expected));
+    expect_event(&event_recv, &DroneEvent::PacketDropped(packet));
+    expect_one_event(&event_recv, &DroneEvent::PacketSent(&expected));
 }

@@ -117,7 +117,7 @@ fn flood_request_no_neighbors() {
     )
     .build();
 
-    expect_one_packet(&r0, expected.clone());
+    expect_one_packet(&r0, &expected);
     expect_one_event(&er, DroneEvent::PacketSent(expected));
 }
 
@@ -152,7 +152,7 @@ fn flood_request_id_seen_already() {
             .build();
 
     expect_no_packet(&r0);
-    expect_one_packet(&r2, expected.clone());
+    expect_one_packet(&r2, &expected);
     expect_one_event(&er, DroneEvent::PacketSent(expected));
 
     // -------------------------------------------
@@ -169,7 +169,7 @@ fn flood_request_id_seen_already() {
         .build();
 
     expect_no_packet(&r0);
-    expect_one_packet(&r2, expected.clone());
+    expect_one_packet(&r2, &expected);
     expect_one_event(&er, DroneEvent::PacketSent(expected));
 
     // -------------------------------------------
@@ -186,7 +186,7 @@ fn flood_request_id_seen_already() {
         .build();
 
     expect_no_packet(&r2);
-    expect_one_packet(&r0, expected.clone());
+    expect_one_packet(&r0, &expected);
     expect_one_event(&er, DroneEvent::PacketSent(expected));
 
     // -------------------------------------------
@@ -205,6 +205,6 @@ fn flood_request_id_seen_already() {
     .build();
 
     expect_no_packet(&r2);
-    expect_one_packet(&r0, expected.clone());
+    expect_one_packet(&r0, &expected);
     expect_one_event(&er, DroneEvent::PacketSent(expected));
 }

@@ -54,7 +54,7 @@ fn shortcut() {
         p.routing_header.hop_index += 1;
         let expected = DroneEvent::ControllerShortcut(p);
 
-        expect_one_event(&event_recv, expected);
+        expect_one_event(&event_recv,&expected);
     }
 
     // --------------------------------------------------------------------------------------------
@@ -67,10 +67,10 @@ fn shortcut() {
     };
 
     let expected = PacketBuilder::new_nack(vec![1, 0], NackType::ErrorInRouting(2)).build();
-    expect_packet(&r0, expected.clone());
+    expect_packet(&r0, &expected);
 
     let expected = DroneEvent::PacketSent(expected);
-    expect_one_event(&event_recv, expected);
+    expect_one_event(&event_recv,&expected);
 
     // in the case of floodRequest the channel has been dropped and removed from neighbors, and
     // floodreq ignores source routing header anyway, so it behaves like a normal flooding, which
