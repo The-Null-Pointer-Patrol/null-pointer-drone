@@ -17,7 +17,7 @@ use wg_2024::{
     packet::{NackType, Packet},
 };
 
-mod common;
+pub mod common;
 
 /// topology: 0-1-2
 /// send 0->(1)->2 and check it forwards

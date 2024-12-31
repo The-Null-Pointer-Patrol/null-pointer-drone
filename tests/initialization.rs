@@ -4,10 +4,12 @@ use common::create_channels;
 use null_pointer_drone::MyDrone;
 use wg_2024::{drone::Drone, packet::Packet};
 
-mod common;
+pub mod common;
 
 #[test]
-#[should_panic(expected = "Tried to set an invalid pdr value of 43.14, which is not in range (0.0..=1.0)")]
+#[should_panic(
+    expected = "Tried to set an invalid pdr value of 43.14, which is not in range (0.0..=1.0)"
+)]
 fn pdr_too_big() {
     let (controller_send, _, _, controller_recv, _packet_send, packet_recv) = create_channels();
     let _my_drone = MyDrone::new(
@@ -21,7 +23,9 @@ fn pdr_too_big() {
 }
 
 #[test]
-#[should_panic(expected = "Tried to set an invalid pdr value of -0.1, which is not in range (0.0..=1.0)")]
+#[should_panic(
+    expected = "Tried to set an invalid pdr value of -0.1, which is not in range (0.0..=1.0)"
+)]
 fn pdr_negative() {
     let (controller_send, _, _, controller_recv, _packet_send, packet_recv) = create_channels();
     let _my_drone = MyDrone::new(

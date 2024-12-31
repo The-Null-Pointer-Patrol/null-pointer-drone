@@ -14,7 +14,7 @@ use wg_2024::{
     packet::{NackType, Packet},
 };
 
-mod common;
+pub mod common;
 
 #[test_log::test]
 fn forward() {

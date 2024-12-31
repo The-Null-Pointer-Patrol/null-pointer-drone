@@ -9,7 +9,8 @@ use wg_2024::{
     controller::{DroneCommand, DroneEvent},
     drone::Drone,
 };
-mod common;
+
+pub mod common;
 
 /// sends a packet:
 /// 0 -> (1) -> 2

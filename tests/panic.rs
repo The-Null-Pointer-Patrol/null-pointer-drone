@@ -7,7 +7,8 @@ use std::collections::HashMap;
 use wg_2024::controller::DroneCommand;
 use wg_2024::drone::Drone;
 use wg_2024::packet::{FloodRequest, Packet, PacketType};
-mod common;
+
+pub mod common;
 
 #[test_log::test]
 fn dropped_command_sender() {

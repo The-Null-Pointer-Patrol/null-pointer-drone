@@ -13,7 +13,8 @@ use wg_2024::{
     drone::Drone,
     packet::{NackType, Packet},
 };
-mod common;
+
+pub mod common;
 
 /// sends this packet:
 /// 0 -> (1) -> 2

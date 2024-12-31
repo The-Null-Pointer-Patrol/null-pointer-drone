@@ -15,7 +15,7 @@ use wg_2024::{
     packet::{FloodRequest, NodeType, Packet, PacketType},
 };
 
-mod common;
+pub mod common;
 
 #[test_log::test]
 fn flood_request_propagation() {

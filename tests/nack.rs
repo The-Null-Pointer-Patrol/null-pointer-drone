@@ -11,7 +11,8 @@ use wg_2024::{
     drone::Drone,
     packet::{NackType, Packet},
 };
-mod common;
+
+pub mod common;
 
 #[test]
 fn mismatched_hop_index() {
