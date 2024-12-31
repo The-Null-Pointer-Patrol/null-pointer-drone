@@ -21,16 +21,22 @@ jobs:
 
     - name: Run tests
       run: cargo test --verbose
+
   cov:
     runs-on: ubuntu-latest
     steps:
     - name: Install Rust Nightly
-      uses: actions-rs/toolchain@v1 , taiki-e/install-action@cargo-llvm-cov
+      uses: actions-rs/toolchain@v1
       with:
         toolchain: nightly
 
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@v1
+      with:
+        tool: cargo-llvm-cov
+
     - name: Run Coverage
-      run: RUST_LOG=debug cargo +nightly llvm-cov --no-cfg-coverage-nightly --text --output-dir coverage/
+      run: cargo +nightly llvm-cov --no-cfg-coverage-nightly --text --output-dir coverage/
 
 
       
