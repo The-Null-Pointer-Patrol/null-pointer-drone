@@ -12,7 +12,7 @@ use wg_2024::{
     controller::DroneEvent,
     drone::Drone,
     network::SourceRoutingHeader,
-    packet::{FloodRequest, FloodResponse, NodeType, Packet, PacketType},
+    packet::{FloodRequest, NodeType, Packet, PacketType},
 };
 
 mod common;
@@ -58,7 +58,7 @@ fn flood_request_propagation() {
         initiator_id: 100,
         path_trace: vec![(100, NodeType::Client), (1, NodeType::Drone)],
     });
-    let mut x = 2;
+    let x = 2;
     for r in [r2, r3, r4] {
         // flood request does not care about routing header, but for how it's implemented at the
         // moment a vec of len 2 is created, see process_flood_request for more info
