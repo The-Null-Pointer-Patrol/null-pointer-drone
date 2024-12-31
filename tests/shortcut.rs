@@ -31,7 +31,7 @@ fn shortcut() {
 
     // simulate crash
     match command_send.send(DroneCommand::RemoveSender(2)) {
-        Ok(_) => {}
+        Ok(()) => {}
         Err(e) => panic!("could not remove sender for drone 2 to simulate crash, err: {e}"),
     };
     drop(r2);

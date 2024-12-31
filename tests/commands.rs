@@ -51,7 +51,7 @@ fn removesender() {
 
     // remove sender
     match command_send.send(DroneCommand::RemoveSender(2)) {
-        Ok(_) => {}
+        Ok(()) => {}
         Err(e) => panic!("could not remove sender for drone 2, err: {e}"),
     };
     drop(r2);
@@ -93,7 +93,7 @@ fn addsender() {
 
     // add sender
     match command_send.send(DroneCommand::AddSender(2, s2)) {
-        Ok(_) => {}
+        Ok(()) => {}
         Err(e) => panic!("could not add sender for drone 2, err: {e}"),
     };
 
@@ -110,7 +110,7 @@ fn addsender() {
     // change sender (shadows previous senders by creating another 2)
     let (s2, r2) = unbounded::<Packet>();
     match command_send.send(DroneCommand::AddSender(2, s2)) {
-        Ok(_) => {}
+        Ok(()) => {}
         Err(e) => panic!("could not add sender for drone 2, err: {e}"),
     };
 
@@ -210,7 +210,7 @@ fn crash() {
 
     // send crash command
     match command_send.send(DroneCommand::Crash) {
-        Ok(_) => {}
+        Ok(()) => {}
         Err(e) => panic!("could not crash drone 1, err: {e}"),
     };
 

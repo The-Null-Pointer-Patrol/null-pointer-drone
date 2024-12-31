@@ -28,7 +28,7 @@ pub fn expect_one_packet(rcv: &Receiver<Packet>, expected: Packet) {
     match rcv.recv_timeout(std::time::Duration::from_millis(RECV_WAIT_TIME)) {
         Err(_) => {}
         Ok(got) => {
-            panic!("not expecting a second packet, got: {}", got);
+            panic!("not expecting a second packet, got: {got}");
         }
     };
 }
@@ -37,7 +37,7 @@ pub fn expect_one_packet(rcv: &Receiver<Packet>, expected: Packet) {
 pub fn expect_packet(rcv: &Receiver<Packet>, expected: Packet) {
     match rcv.recv_timeout(std::time::Duration::from_millis(RECV_WAIT_TIME)) {
         Err(e) => {
-            panic!("error receiving packet: {}", e);
+            panic!("error receiving packet: {e}");
         }
         Ok(got) => {
             assert_eq!(got, expected);
@@ -50,7 +50,7 @@ pub fn expect_no_packet(rcv: &Receiver<Packet>) {
     match rcv.recv_timeout(std::time::Duration::from_millis(RECV_WAIT_TIME)) {
         Err(_) => {}
         Ok(got) => {
-            panic!("not expecting any packet, got: {}", got);
+            panic!("not expecting any packet, got: {got}");
         }
     };
 }
@@ -64,7 +64,7 @@ pub fn expect_one_event(rcv: &Receiver<DroneEvent>, expected: DroneEvent) {
     match rcv.recv_timeout(std::time::Duration::from_millis(RECV_WAIT_TIME)) {
         Err(_) => {}
         Ok(got) => {
-            panic!("was expecting just one event, received also: {:?}", got);
+            panic!("was expecting just one event, received also: {got:?}");
         }
     };
 }
@@ -73,7 +73,7 @@ pub fn expect_one_event(rcv: &Receiver<DroneEvent>, expected: DroneEvent) {
 pub fn expect_event(rcv: &Receiver<DroneEvent>, expected: DroneEvent) {
     match rcv.recv_timeout(std::time::Duration::from_millis(RECV_WAIT_TIME)) {
         Err(e) => {
-            panic!("error receiving event: {}", e);
+            panic!("error receiving event: {e}");
         }
         Ok(got) => {
             assert_eq!(got, expected);
@@ -86,7 +86,7 @@ pub fn expect_no_event(rcv: &Receiver<DroneEvent>) {
     match rcv.recv_timeout(std::time::Duration::from_millis(RECV_WAIT_TIME)) {
         Err(_) => {}
         Ok(got) => {
-            panic!("not expecting a second event, got: {:?}", got);
+            panic!("not expecting a second event, got: {got:?}");
         }
     };
 }

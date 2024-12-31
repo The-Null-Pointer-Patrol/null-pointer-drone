@@ -13,7 +13,7 @@ pub mod expect;
 pub mod packetbuilder;
 
 #[allow(clippy::type_complexity)]
-pub fn create_channels() -> (
+ pub fn create_channels() -> (
     Sender<DroneEvent>,
     Receiver<DroneEvent>,
     Sender<DroneCommand>,
@@ -27,7 +27,7 @@ pub fn create_channels() -> (
     (s1, r1, s2, r2, s3, r3)
 }
 
-pub fn default_fragment(idx: u64, n_frags: u64) -> Fragment {
+ pub fn default_fragment(idx: u64, n_frags: u64) -> Fragment {
     Fragment {
         fragment_index: idx,
         total_n_fragments: n_frags,
@@ -36,7 +36,7 @@ pub fn default_fragment(idx: u64, n_frags: u64) -> Fragment {
     }
 }
 
-pub fn start_drone_thread(mut d: MyDrone) -> JoinHandle<()> {
+ pub fn start_drone_thread(mut d: MyDrone) -> JoinHandle<()> {
     spawn(move || {
         d.run();
     })

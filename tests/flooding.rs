@@ -66,7 +66,7 @@ fn flood_request_propagation() {
 
         match r.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
             Err(e) => {
-                panic!("error receiving packet: {}", e);
+                panic!("error receiving packet: {e}");
             }
             Ok(p2) => {
                 assert_eq!(p2.session_id, packet.session_id);
@@ -82,12 +82,12 @@ fn flood_request_propagation() {
                         assert_eq!(p2.pack_type, packet.pack_type);
                     }
                     _ => {
-                        panic!("Was expecting event of type PacketsSent, got {:?}", e2)
+                        panic!("Was expecting event of type PacketsSent, got {e2:?}")
                     }
                 }
             }
             Err(e) => {
-                panic!("error receiving packet: {}", e);
+                panic!("error receiving packet: {e}");
             }
         }
     }
