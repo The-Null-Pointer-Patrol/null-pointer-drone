@@ -419,13 +419,14 @@ impl MyDrone {
         original_recipient_idx: usize,
         nack_type: NackType,
     ) {
-        debug_assert!(
+        //expected to be unreachable given the logic of where make and send nack is done
+        assert!(
             original_packet
                 .routing_header
                 .hops
                 .get(original_recipient_idx)
                 .is_some(),
-            "original recipient index out of bounds"
+            "original recipient index out of bounds, this should be unreachable"
         );
 
         let fragment_index = match &original_packet.pack_type {
