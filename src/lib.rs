@@ -176,7 +176,7 @@ impl MyDrone {
     pub fn process_packet(&mut self, packet: Packet) {
         match packet.pack_type {
             PacketType::FloodRequest(flood_request) => {
-                self.process_flood_request(flood_request, packet.session_id)
+                self.process_flood_request(flood_request, packet.session_id);
             }
             _ => self.process_not_flood_request(packet),
         }
@@ -231,19 +231,22 @@ impl MyDrone {
     }
 
     fn process_flood_request(&mut self, flood_request: FloodRequest, session_id: u64) {
-        let Some((received_from, _node_type)) = flood_request.path_trace.last() else {
+        let FloodRequest {
+            flood_id,
+            initiator_id,
+            mut path_trace,
+        } = flood_request;
+
+        let Some((received_from, _)) = path_trace.last().copied() else {
             panic!("flood request has no path trace")
         };
 
-        let flood_id = flood_request.flood_id;
-        let initiator_id = flood_request.initiator_id;
-        let mut new_path_trace = flood_request.path_trace.clone();
-        new_path_trace.push((self.id, NodeType::Drone));
+        path_trace.push((self.id, NodeType::Drone));
 
         let neighbors_minus_sender: Vec<NodeId> = self
             .packet_send
             .iter()
-            .filter(|(node_id, _channel)| **node_id != *received_from)
+            .filter(|(node_id, _channel)| **node_id != received_from)
             .map(|(node_id, _channel)| node_id)
             .copied()
             .collect();
@@ -260,17 +263,12 @@ impl MyDrone {
 
             let flood_response = PacketType::FloodResponse(FloodResponse {
                 flood_id,
-                path_trace: new_path_trace.clone(),
+                path_trace: path_trace.clone(),
             });
             // there is no hops vec to reverse in sourcerouting header because
             // floodrequest ignores it, path trace is used instead
 
-            let hops: Vec<NodeId> = new_path_trace
-                .iter()
-                .map(|(id, _)| id)
-                .rev()
-                .copied()
-                .collect();
+            let hops: Vec<NodeId> = path_trace.iter().map(|(id, _)| id).rev().copied().collect();
 
             let flood_response_packet = Packet {
                 pack_type: flood_response,
@@ -288,7 +286,7 @@ impl MyDrone {
             let flood_request = FloodRequest {
                 flood_id,
                 initiator_id: flood_request.initiator_id,
-                path_trace: new_path_trace,
+                path_trace,
             };
             let packet_type = PacketType::FloodRequest(flood_request);
 
