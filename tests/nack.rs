@@ -5,6 +5,7 @@ use common::{
 use crossbeam_channel::unbounded;
 use null_pointer_drone::MyDrone;
 use std::{collections::HashMap, thread};
+use test_log::test;
 use wg_2024::{
     controller::{DroneCommand, DroneEvent},
     drone::Drone,

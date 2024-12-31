@@ -3,7 +3,8 @@ use std::{collections::HashMap, time::Duration};
 use common::{
     create_channels,
     expect::{
-        expect_no_packet, expect_one_event, expect_one_packet, expect_packet, try_send_packet,
+        expect_no_packet, expect_one_event, expect_one_packet, expect_packet, try_send_command,
+        try_send_packet,
     },
     packetbuilder::PacketBuilder,
     start_drone_thread, RECV_WAIT_TIME,
@@ -105,6 +106,23 @@ fn addsender() {
     expect_no_packet(&r0);
     let expected = DroneEvent::PacketSent(expected);
     expect_one_event(&event_recv, expected);
+
+    // change sender (shadows previous senders by creating another 2)
+    let (s2, r2) = unbounded::<Packet>();
+    match command_send.send(DroneCommand::AddSender(2, s2)) {
+        Ok(_) => {}
+        Err(e) => panic!("could not add sender for drone 2, err: {e}"),
+    };
+
+    // check normal functioning
+    try_send_packet(&packet_send, p.clone());
+    let expected = PacketBuilder::new_fragment(hops.clone())
+        .hop_index(2)
+        .build();
+    expect_one_packet(&r2, expected.clone());
+    expect_no_packet(&r0);
+    let expected = DroneEvent::PacketSent(expected);
+    expect_one_event(&event_recv, expected);
 }
 
 /// topology: 0-1 2
@@ -135,19 +153,26 @@ fn changepdr() {
         .build();
     expect_one_packet(&r2, expected.clone());
     expect_no_packet(&r0);
-    let expected = DroneEvent::PacketSent(expected);
-    expect_one_event(&event_recv, expected);
 
     // set pdr to 1.0
-    match command_send.send(DroneCommand::SetPacketDropRate(1.0)) {
-        Ok(_) => {}
-        Err(e) => panic!("could not change pdr of drone 1, err: {e}"),
-    };
+    try_send_command(&command_send, DroneCommand::SetPacketDropRate(1.0));
 
-    // check drone gives nack before adding
+    // check drone gives nack
     try_send_packet(&packet_send, p.clone());
     let expected = PacketBuilder::new_nack(vec![1, 0], NackType::Dropped).build();
     expect_packet(&r0, expected.clone());
+    expect_no_packet(&r2);
+
+    // set pdr to 0.0
+    try_send_command(&command_send, DroneCommand::SetPacketDropRate(0.0));
+
+    // check normal functioning
+    try_send_packet(&packet_send, p.clone());
+    let expected = PacketBuilder::new_fragment(hops.clone())
+        .hop_index(2)
+        .build();
+    expect_one_packet(&r2, expected.clone());
+    expect_no_packet(&r0);
 }
 
 /// topology: 0-1-2
