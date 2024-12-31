@@ -12,6 +12,7 @@ use wg_2024::{
 pub mod expect;
 pub mod packetbuilder;
 
+#[allow(clippy::type_complexity)]
 pub fn create_channels() -> (
     Sender<DroneEvent>,
     Receiver<DroneEvent>,

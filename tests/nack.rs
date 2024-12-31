@@ -58,7 +58,7 @@ fn drone_as_destination() {
     // Create channels
     let (packet_send, packet_recv) = crossbeam_channel::unbounded::<Packet>();
     let (controller_send, _cr) = crossbeam_channel::unbounded::<DroneEvent>();
-    let (cs_, controller_recv) = crossbeam_channel::unbounded::<DroneCommand>();
+    let (_cs_, controller_recv) = crossbeam_channel::unbounded::<DroneCommand>();
 
     // create neighbor
     let (neighbour_send, neighbour_receive) = unbounded::<Packet>();

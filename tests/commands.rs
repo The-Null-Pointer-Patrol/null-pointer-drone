@@ -131,7 +131,7 @@ fn addsender() {
 /// send 0->(1)->2 and check it gives dropped nack
 #[test_log::test]
 fn changepdr() {
-    let (event_send, event_recv, command_send, command_recv, packet_send, packet_recv) =
+    let (event_send, _event_recv, command_send, command_recv, packet_send, packet_recv) =
         create_channels();
 
     let (s0, r0) = unbounded::<Packet>();

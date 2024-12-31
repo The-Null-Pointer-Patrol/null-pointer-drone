@@ -58,7 +58,6 @@ fn flood_request_propagation() {
         initiator_id: 100,
         path_trace: vec![(100, NodeType::Client), (1, NodeType::Drone)],
     });
-    let x = 2;
     for r in [r2, r3, r4] {
         // flood request does not care about routing header, but for how it's implemented at the
         // moment a vec of len 2 is created, see process_flood_request for more info
@@ -76,7 +75,7 @@ fn flood_request_propagation() {
         };
         match event_recv.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
             Ok(e2) => {
-                let expected = DroneEvent::PacketSent(packet.clone());
+                let _expected = DroneEvent::PacketSent(packet.clone());
                 match e2 {
                     DroneEvent::PacketSent(p2) => {
                         assert_eq!(p2.session_id, packet.session_id);
