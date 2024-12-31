@@ -364,9 +364,7 @@ impl MyDrone {
                     self.make_and_send_nack(&packet, idx as usize, NackType::ErrorInRouting(dest));
                 }
                 PacketType::FloodRequest(_) => {
-                    log::info!("Ignoring flood request");
-                    // do not send any NACK nor any other message if a FloodRequest cannot be sent
-                    // in the requested channel
+                    unreachable!("Flood request algorithm should never try to send a flood request to a node not in the list of neighbors, as it gets all the neighbors from that list");
                 }
                 _ => {
                     log::info!("Sending packet {packet} to simulation controller to shortcut it");

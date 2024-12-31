@@ -91,6 +91,15 @@ fn drone_as_destination() {
     let expected_packet =
         PacketBuilder::new_nack(vec![2, 1, 0], NackType::DestinationIsDrone).build();
     expect_one_packet(&neighbour_receive, expected_packet);
+
+    // try with packet that is not a fragment
+    let packet = PacketBuilder::new_ack(vec![0, 1, 2]).hop_index(2).build();
+
+    try_send_packet(&packet_send, packet.clone());
+
+    let expected_packet =
+        PacketBuilder::new_nack(vec![2, 1, 0], NackType::DestinationIsDrone).build();
+    expect_one_packet(&neighbour_receive, expected_packet);
 }
 
 #[test]
