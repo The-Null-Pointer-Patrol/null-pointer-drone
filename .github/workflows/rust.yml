@@ -21,3 +21,7 @@ jobs:
 
     - name: Run tests
       run: cargo test --verbose
+      
+    - name: Create Coverage
+      run: RUST_LOG=debug cargo +nightly llvm-cov --no-cfg-coverage-nightly --text --output-dir coverage/
+
