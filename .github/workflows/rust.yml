@@ -25,7 +25,9 @@ jobs:
   cov:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4  # Clone the repository
+    - uses: actions/checkout@v4  # Checkout the correct branch for the PR
+      with:
+        ref: ${{ github.head_ref }}  # Ensures the PR source branch is checked out
 
     - name: Install Rust Nightly
       uses: actions-rs/toolchain@v1
@@ -43,13 +45,8 @@ jobs:
       run: |
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
-        git add -A  # Stage all changes, including those from the coverage command
+        git add -A
         git commit -m "Update coverage results"
         git push
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
-
-      
-
