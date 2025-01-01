@@ -1,21 +1,20 @@
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
 use common::{
-    create_channels, default_fragment,
-    expect::{expect_event, expect_no_packet, expect_one_event, expect_one_packet, expect_packet},
+    create_channels,
+    expect::{expect_event, expect_no_packet, expect_one_event, expect_one_packet},
     packetbuilder::PacketBuilder,
-    start_drone_thread, RECV_WAIT_TIME,
+    start_drone_thread,
 };
-use crossbeam_channel::{unbounded, Receiver, Sender};
-use log::warn;
+use crossbeam_channel::unbounded;
 use null_pointer_drone::MyDrone;
 use wg_2024::{
     controller::DroneEvent,
     drone::Drone,
-    network::SourceRoutingHeader,
-    packet::{Ack, FloodResponse, Nack, NackType, NodeType, Packet, PacketType},
+    packet::{NackType, Packet},
 };
-mod common;
+
+pub mod common;
 
 /// sends this packet:
 /// 0 -> (1) -> 2
@@ -38,7 +37,7 @@ fn expect_drop() {
     let my_drone = MyDrone::new(1, event_send, controller_recv, packet_recv, senders, 1.0);
     let _handle = start_drone_thread(my_drone);
 
-    let mut packet = PacketBuilder::new_fragment(vec![0, 1, 2]).build();
+    let packet = PacketBuilder::new_fragment(vec![0, 1, 2]).build();
 
     // as if we're sending from drone 0
     if let Err(_e) = packet_send.send(packet.clone()) {
@@ -47,10 +46,10 @@ fn expect_drop() {
 
     let expected = PacketBuilder::new_nack(vec![1, 0], NackType::Dropped).build();
 
-    expect_one_packet(&r0, expected.clone());
+    expect_one_packet(&r0, &expected);
 
     expect_no_packet(&r2);
 
-    expect_event(&event_recv, DroneEvent::PacketDropped(packet));
-    expect_one_event(&event_recv, DroneEvent::PacketSent(expected));
+    expect_event(&event_recv, &DroneEvent::PacketDropped(packet));
+    expect_one_event(&event_recv, &DroneEvent::PacketSent(expected));
 }

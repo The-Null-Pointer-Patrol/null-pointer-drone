@@ -5,12 +5,14 @@ use common::{
 use crossbeam_channel::unbounded;
 use null_pointer_drone::MyDrone;
 use std::{collections::HashMap, thread};
+use test_log::test;
 use wg_2024::{
     controller::{DroneCommand, DroneEvent},
     drone::Drone,
     packet::{NackType, Packet},
 };
-mod common;
+
+pub mod common;
 
 #[test]
 fn mismatched_hop_index() {
@@ -48,7 +50,7 @@ fn mismatched_hop_index() {
 
     let expected_packet =
         PacketBuilder::new_nack(vec![2, 1, 0], NackType::UnexpectedRecipient(3)).build();
-    expect_one_packet(&neighbour_receive, expected_packet);
+    expect_one_packet(&neighbour_receive, &expected_packet);
 }
 
 #[test]
@@ -56,7 +58,7 @@ fn drone_as_destination() {
     // Create channels
     let (packet_send, packet_recv) = crossbeam_channel::unbounded::<Packet>();
     let (controller_send, _cr) = crossbeam_channel::unbounded::<DroneEvent>();
-    let (cs_, controller_recv) = crossbeam_channel::unbounded::<DroneCommand>();
+    let (_cs_, controller_recv) = crossbeam_channel::unbounded::<DroneCommand>();
 
     // create neighbor
     let (neighbour_send, neighbour_receive) = unbounded::<Packet>();
@@ -87,9 +89,16 @@ fn drone_as_destination() {
     try_send_packet(&packet_send, packet.clone());
 
     // Read the output from receiver's incoming channel
-    let expected_packet =
-        PacketBuilder::new_nack(vec![2, 1, 0], NackType::DestinationIsDrone).build();
-    expect_one_packet(&neighbour_receive, expected_packet);
+    let expected = PacketBuilder::new_nack(vec![2, 1, 0], NackType::DestinationIsDrone).build();
+    expect_one_packet(&neighbour_receive, &expected);
+
+    // try with packet that is not a fragment
+    let packet = PacketBuilder::new_ack(vec![0, 1, 2]).hop_index(2).build();
+
+    try_send_packet(&packet_send, packet.clone());
+
+    let expected = PacketBuilder::new_nack(vec![2, 1, 0], NackType::DestinationIsDrone).build();
+    expect_one_packet(&neighbour_receive, &expected);
 }
 
 #[test]
@@ -127,5 +136,5 @@ fn nack_when_there_are_no_neighbours() {
 
     let expected = PacketBuilder::new_nack(vec![2, 1, 0], NackType::ErrorInRouting(3)).build();
 
-    expect_one_packet(&neighbour_receive_1, expected);
+    expect_one_packet(&neighbour_receive_1, &expected);
 }

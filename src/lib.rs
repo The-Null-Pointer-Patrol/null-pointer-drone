@@ -38,6 +38,8 @@ fn generate_random_value_in_range(range: RangeInclusive<f32>) -> f32 {
 }
 
 impl Drone for MyDrone {
+    /// creates the drone with the given options, logs that it has been created and returns the
+    /// drone
     fn new(
         id: NodeId,
         controller_send: Sender<DroneEvent>,
@@ -64,6 +66,36 @@ impl Drone for MyDrone {
         result
     }
 
+    /// runs the drone loop, listening for events and packets, exits succesfully if sent a
+    /// `DroneCommand::Crash` after all references of the sender for its own receiver have been
+    /// dropped
+    ///
+    /// # Panics
+    /// ## The Sender<DroneCommand> end of the simulation controller channel unexpectedly got dropped
+    ///
+    /// ## There is no connected sender to the drone's receiver channel and no DroneCommand::Crash has been received
+    ///
+    /// ## Tried to set an invalid pdr value of {pdr}, which is not in range (0.0..=1.0)
+    ///
+    /// ## Cannot add a channel with the same NodeId of this drone (which is {})
+    /// You cannot connect the drone to itself or another drone with the same id
+    ///
+    /// ## Cannot remove channel to {node_id}: it does not exist
+    ///
+    /// ## empty routing header for packet {packet}
+    ///
+    /// ## hop_index out of bounds: index {current_index} for hops {:?}
+    ///
+    /// ## received packet with hop_index 0, which should be impossible
+    /// Refers to packets that are not a flood request, maybe this packet was supposed to be a **flood request**
+    ///
+    /// ## flood request has no path trace
+    ///
+    /// ## Cannot send packet {&packet} into channel {channel:?}. Error: {error:?}
+    /// when the crossbeam channel send returns an error
+    ///
+    /// ## Cannot send event {&event} to simulation controller. Error: {error:?}"
+    /// same thing as above but for event
     fn run(&mut self) {
         'loop_label: loop {
             /*
@@ -176,7 +208,7 @@ impl MyDrone {
     pub fn process_packet(&mut self, packet: Packet) {
         match packet.pack_type {
             PacketType::FloodRequest(flood_request) => {
-                self.process_flood_request(flood_request, packet.session_id)
+                self.process_flood_request(flood_request, packet.session_id);
             }
             _ => self.process_not_flood_request(packet),
         }
@@ -231,19 +263,22 @@ impl MyDrone {
     }
 
     fn process_flood_request(&mut self, flood_request: FloodRequest, session_id: u64) {
-        let Some((received_from, _node_type)) = flood_request.path_trace.last() else {
+        let FloodRequest {
+            flood_id,
+            initiator_id,
+            mut path_trace,
+        } = flood_request;
+
+        let Some((received_from, _)) = path_trace.last().copied() else {
             panic!("flood request has no path trace")
         };
 
-        let flood_id = flood_request.flood_id;
-        let initiator_id = flood_request.initiator_id;
-        let mut new_path_trace = flood_request.path_trace.clone();
-        new_path_trace.push((self.id, NodeType::Drone));
+        path_trace.push((self.id, NodeType::Drone));
 
         let neighbors_minus_sender: Vec<NodeId> = self
             .packet_send
             .iter()
-            .filter(|(node_id, _channel)| **node_id != *received_from)
+            .filter(|(node_id, _channel)| **node_id != received_from)
             .map(|(node_id, _channel)| node_id)
             .copied()
             .collect();
@@ -260,17 +295,12 @@ impl MyDrone {
 
             let flood_response = PacketType::FloodResponse(FloodResponse {
                 flood_id,
-                path_trace: new_path_trace.clone(),
+                path_trace: path_trace.clone(),
             });
             // there is no hops vec to reverse in sourcerouting header because
             // floodrequest ignores it, path trace is used instead
 
-            let hops: Vec<NodeId> = new_path_trace
-                .iter()
-                .map(|(id, _)| id)
-                .rev()
-                .copied()
-                .collect();
+            let hops: Vec<NodeId> = path_trace.iter().map(|(id, _)| id).rev().copied().collect();
 
             let flood_response_packet = Packet {
                 pack_type: flood_response,
@@ -288,7 +318,7 @@ impl MyDrone {
             let flood_request = FloodRequest {
                 flood_id,
                 initiator_id: flood_request.initiator_id,
-                path_trace: new_path_trace,
+                path_trace,
             };
             let packet_type = PacketType::FloodRequest(flood_request);
 
@@ -364,9 +394,7 @@ impl MyDrone {
                     self.make_and_send_nack(&packet, idx as usize, NackType::ErrorInRouting(dest));
                 }
                 PacketType::FloodRequest(_) => {
-                    log::info!("Ignoring flood request");
-                    // do not send any NACK nor any other message if a FloodRequest cannot be sent
-                    // in the requested channel
+                    unreachable!("Flood request algorithm should never try to send a flood request to a node not in the list of neighbors, as it gets all the neighbors from that list");
                 }
                 _ => {
                     log::info!("Sending packet {packet} to simulation controller to shortcut it");
@@ -421,13 +449,14 @@ impl MyDrone {
         original_recipient_idx: usize,
         nack_type: NackType,
     ) {
-        debug_assert!(
+        //expected to be unreachable given the logic of where make and send nack is done
+        assert!(
             original_packet
                 .routing_header
                 .hops
                 .get(original_recipient_idx)
                 .is_some(),
-            "original recipient index out of bounds"
+            "original recipient index out of bounds, this should be unreachable"
         );
 
         let fragment_index = match &original_packet.pack_type {

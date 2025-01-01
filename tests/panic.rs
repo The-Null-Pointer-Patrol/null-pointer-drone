@@ -7,7 +7,8 @@ use std::collections::HashMap;
 use wg_2024::controller::DroneCommand;
 use wg_2024::drone::Drone;
 use wg_2024::packet::{FloodRequest, Packet, PacketType};
-mod common;
+
+pub mod common;
 
 #[test_log::test]
 fn dropped_command_sender() {
@@ -45,7 +46,7 @@ fn dropped_packet_sender() {
 
 #[test_log::test]
 fn remove_nonexisting_channel() {
-    let (es, er, cs, cr, ps, pr) = create_channels();
+    let (es, er, cs, cr, _ps, pr) = create_channels();
 
     let senders = HashMap::new();
     let my_drone = MyDrone::new(1, es, cr, pr, senders, 0.0);
@@ -147,9 +148,9 @@ fn no_path_trace() {
 
 #[test_log::test]
 fn cant_send_into_channel() {
-    let (es, er, _cs, cr, ps, pr) = create_channels();
+    let (es, _er, _cs, cr, ps, pr) = create_channels();
 
-    let (s0, r0) = unbounded::<Packet>();
+    let (s0, _r0) = unbounded::<Packet>();
     let (s2, r2) = unbounded::<Packet>();
     let mut senders = HashMap::new();
     senders.insert(0, s0);
@@ -174,8 +175,8 @@ fn cant_send_into_channel() {
 fn cant_send_to_sc() {
     let (es, er, _cs, cr, ps, pr) = create_channels();
 
-    let (s0, r0) = unbounded::<Packet>();
-    let (s2, r2) = unbounded::<Packet>();
+    let (s0, _r0) = unbounded::<Packet>();
+    let (s2, _r2) = unbounded::<Packet>();
     let mut senders = HashMap::new();
     senders.insert(0, s0);
     senders.insert(2, s2);

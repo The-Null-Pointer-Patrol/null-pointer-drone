@@ -12,10 +12,10 @@ use wg_2024::{
     controller::DroneEvent,
     drone::Drone,
     network::SourceRoutingHeader,
-    packet::{FloodRequest, FloodResponse, NodeType, Packet, PacketType},
+    packet::{FloodRequest, NodeType, Packet, PacketType},
 };
 
-mod common;
+pub mod common;
 
 #[test_log::test]
 fn flood_request_propagation() {
@@ -58,7 +58,6 @@ fn flood_request_propagation() {
         initiator_id: 100,
         path_trace: vec![(100, NodeType::Client), (1, NodeType::Drone)],
     });
-    let mut x = 2;
     for r in [r2, r3, r4] {
         // flood request does not care about routing header, but for how it's implemented at the
         // moment a vec of len 2 is created, see process_flood_request for more info
@@ -67,7 +66,7 @@ fn flood_request_propagation() {
 
         match r.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
             Err(e) => {
-                panic!("error receiving packet: {}", e);
+                panic!("error receiving packet: {e}");
             }
             Ok(p2) => {
                 assert_eq!(p2.session_id, packet.session_id);
@@ -76,19 +75,19 @@ fn flood_request_propagation() {
         };
         match event_recv.recv_timeout(Duration::from_millis(RECV_WAIT_TIME)) {
             Ok(e2) => {
-                let expected = DroneEvent::PacketSent(packet.clone());
+                let _expected = DroneEvent::PacketSent(packet.clone());
                 match e2 {
                     DroneEvent::PacketSent(p2) => {
                         assert_eq!(p2.session_id, packet.session_id);
                         assert_eq!(p2.pack_type, packet.pack_type);
                     }
                     _ => {
-                        panic!("Was expecting event of type PacketsSent, got {:?}", e2)
+                        panic!("Was expecting event of type PacketsSent, got {e2:?}")
                     }
                 }
             }
             Err(e) => {
-                panic!("error receiving packet: {}", e);
+                panic!("error receiving packet: {e}");
             }
         }
     }
@@ -118,8 +117,8 @@ fn flood_request_no_neighbors() {
     )
     .build();
 
-    expect_one_packet(&r0, expected.clone());
-    expect_one_event(&er, DroneEvent::PacketSent(expected));
+    expect_one_packet(&r0, &expected);
+    expect_one_event(&er, &DroneEvent::PacketSent(expected));
 }
 
 /// topology: 0<->1<->2
@@ -153,8 +152,8 @@ fn flood_request_id_seen_already() {
             .build();
 
     expect_no_packet(&r0);
-    expect_one_packet(&r2, expected.clone());
-    expect_one_event(&er, DroneEvent::PacketSent(expected));
+    expect_one_packet(&r2, &expected);
+    expect_one_event(&er, &DroneEvent::PacketSent(expected));
 
     // -------------------------------------------
     // sending request  with different flood id but same initiator id that will be forwarded
@@ -170,8 +169,8 @@ fn flood_request_id_seen_already() {
         .build();
 
     expect_no_packet(&r0);
-    expect_one_packet(&r2, expected.clone());
-    expect_one_event(&er, DroneEvent::PacketSent(expected));
+    expect_one_packet(&r2, &expected);
+    expect_one_event(&er, &DroneEvent::PacketSent(expected));
 
     // -------------------------------------------
     // sending request  with different initiator id but same flood id that will be forwarded
@@ -187,8 +186,8 @@ fn flood_request_id_seen_already() {
         .build();
 
     expect_no_packet(&r2);
-    expect_one_packet(&r0, expected.clone());
-    expect_one_event(&er, DroneEvent::PacketSent(expected));
+    expect_one_packet(&r0, &expected);
+    expect_one_event(&er, &DroneEvent::PacketSent(expected));
 
     // -------------------------------------------
     // sending request that will be transformed into a response because drone already received
@@ -206,6 +205,6 @@ fn flood_request_id_seen_already() {
     .build();
 
     expect_no_packet(&r2);
-    expect_one_packet(&r0, expected.clone());
-    expect_one_event(&er, DroneEvent::PacketSent(expected));
+    expect_one_packet(&r0, &expected);
+    expect_one_event(&er, &DroneEvent::PacketSent(expected));
 }

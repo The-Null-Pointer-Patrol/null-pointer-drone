@@ -14,7 +14,7 @@ use wg_2024::{
     packet::{NackType, Packet},
 };
 
-mod common;
+pub mod common;
 
 #[test_log::test]
 fn forward() {
@@ -44,8 +44,8 @@ fn forward() {
         try_send_packet(&packet_send, p.clone());
 
         p.routing_header.hop_index += 1;
-        expect_one_packet(&r2, p.clone());
+        expect_one_packet(&r2, &p);
         expect_no_packet(&r0);
-        expect_one_event(&event_recv, DroneEvent::PacketSent(p));
+        expect_one_event(&event_recv, &DroneEvent::PacketSent(p));
     }
 }

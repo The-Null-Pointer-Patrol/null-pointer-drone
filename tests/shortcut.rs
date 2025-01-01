@@ -9,7 +9,8 @@ use wg_2024::{
     controller::{DroneCommand, DroneEvent},
     drone::Drone,
 };
-mod common;
+
+pub mod common;
 
 /// sends a packet:
 /// 0 -> (1) -> 2
@@ -30,7 +31,7 @@ fn shortcut() {
 
     // simulate crash
     match command_send.send(DroneCommand::RemoveSender(2)) {
-        Ok(_) => {}
+        Ok(()) => {}
         Err(e) => panic!("could not remove sender for drone 2 to simulate crash, err: {e}"),
     };
     drop(r2);
@@ -53,7 +54,7 @@ fn shortcut() {
         p.routing_header.hop_index += 1;
         let expected = DroneEvent::ControllerShortcut(p);
 
-        expect_one_event(&event_recv, expected);
+        expect_one_event(&event_recv,&expected);
     }
 
     // --------------------------------------------------------------------------------------------
@@ -66,10 +67,10 @@ fn shortcut() {
     };
 
     let expected = PacketBuilder::new_nack(vec![1, 0], NackType::ErrorInRouting(2)).build();
-    expect_packet(&r0, expected.clone());
+    expect_packet(&r0, &expected);
 
     let expected = DroneEvent::PacketSent(expected);
-    expect_one_event(&event_recv, expected);
+    expect_one_event(&event_recv,&expected);
 
     // in the case of floodRequest the channel has been dropped and removed from neighbors, and
     // floodreq ignores source routing header anyway, so it behaves like a normal flooding, which
