@@ -66,36 +66,36 @@ impl Drone for MyDrone {
         result
     }
 
-    /// runs the drone loop, listening for events and packets, exits succesfully if sent a
+    /// runs the drone loop, listening for events and packets, exits successfully if sent a
     /// `DroneCommand::Crash` after all references of the sender for its own receiver have been
     /// dropped
     ///
     /// # Panics
-    /// ## The Sender<DroneCommand> end of the simulation controller channel unexpectedly got dropped
+    /// - The `Sender<DroneCommand>` end of the simulation controller channel unexpectedly got dropped
     ///
-    /// ## There is no connected sender to the drone's receiver channel and no DroneCommand::Crash has been received
+    /// - There is no connected sender to the drone's receiver channel and no `DroneCommand::Crash` has been received
     ///
-    /// ## Tried to set an invalid pdr value of {pdr}, which is not in range (0.0..=1.0)
+    /// - Tried to set an invalid pdr value of {`pdr`}, which is not in range (0.0..=1.0)
     ///
-    /// ## Cannot add a channel with the same NodeId of this drone (which is {})
-    /// You cannot connect the drone to itself or another drone with the same id
+    /// - Cannot add a channel with the same `NodeId` of this drone (which is {})
+    ///   You cannot connect the drone to itself or another drone with the same id
     ///
-    /// ## Cannot remove channel to {node_id}: it does not exist
+    /// - Cannot remove channel to {`node_id`}: it does not exist
     ///
-    /// ## empty routing header for packet {packet}
+    /// - empty routing header for packet {`packet`}
     ///
-    /// ## hop_index out of bounds: index {current_index} for hops {:?}
+    /// - `hop_index` out of bounds: index {`current_index`} for hops {:?}
     ///
-    /// ## received packet with hop_index 0, which should be impossible
-    /// Refers to packets that are not a flood request, maybe this packet was supposed to be a **flood request**
+    /// - received packet with `hop_index` 0, which should be impossible
+    ///   Refers to packets that are not a flood request, maybe this packet was supposed to be a **flood request**
     ///
-    /// ## flood request has no path trace
+    /// - flood request has no path trace
     ///
-    /// ## Cannot send packet {&packet} into channel {channel:?}. Error: {error:?}
-    /// when the crossbeam channel send returns an error
+    /// - Cannot send packet {&packet} into channel {channel:?}. Error: {error:?}
+    ///   when the crossbeam channel send returns an error
     ///
-    /// ## Cannot send event {&event} to simulation controller. Error: {error:?}"
-    /// same thing as above but for event
+    /// - Cannot send event {&event} to simulation controller. Error: {error:?}"
+    ///   same thing as above but for event
     fn run(&mut self) {
         'loop_label: loop {
             /*
