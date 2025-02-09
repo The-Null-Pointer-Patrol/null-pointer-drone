@@ -1,7 +1,7 @@
+use crate::{MyDrone, State};
 use crossbeam_channel::Sender;
 use wg_2024::network::NodeId;
 use wg_2024::packet::Packet;
-use crate::{MyDrone, State};
 
 impl MyDrone {
     /// Sets `self.pdr` to the given `pdr` value.

@@ -1,8 +1,8 @@
+use crate::MyDrone;
 use rand::Rng;
 use wg_2024::controller::DroneEvent;
 use wg_2024::network::SourceRoutingHeader;
 use wg_2024::packet::{Nack, NackType, Packet, PacketType};
-use crate::MyDrone;
 
 // packet sending section
 impl MyDrone {

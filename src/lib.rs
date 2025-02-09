@@ -6,9 +6,9 @@ use wg_2024::drone::Drone;
 use wg_2024::network::NodeId;
 use wg_2024::packet::Packet;
 
-mod packet_sending;
-mod packet_processing;
 mod configuration;
+mod packet_processing;
+mod packet_sending;
 
 #[derive(Clone, Copy, Debug)]
 enum State {
